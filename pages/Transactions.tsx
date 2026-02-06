@@ -1,7 +1,8 @@
 
+
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../store';
-import { Wallet, Search, ArrowUpCircle, ArrowDownCircle, Plus, Filter, Trash2, Coins, Package, XCircle, ChevronRight, Edit3 } from 'lucide-react';
+import { Wallet, Search, ArrowUpCircle, ArrowDownCircle, Plus, Filter, Trash2, Coins, Package, XCircle, ChevronRight, Edit3, Calendar } from 'lucide-react';
 import { TransactionType, TransactionCategory } from '../types';
 
 const Transactions: React.FC = () => {
@@ -16,7 +17,8 @@ const Transactions: React.FC = () => {
     type: TransactionType.CASH_OUT,
     category: '',
     amount: 0,
-    description: ''
+    description: '',
+    manualDate: ''
   });
 
   const formatIDR = (val: number) => {
@@ -94,16 +96,21 @@ const Transactions: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (form.amount > 0 && form.description && form.category) {
+      const customTimestamp = form.manualDate ? new Date(form.manualDate).getTime() : undefined;
       addManualTransaction({
-        ...form,
-        category: form.category as TransactionCategory
-      });
+        type: form.type,
+        category: form.category as TransactionCategory,
+        amount: form.amount,
+        description: form.description
+      }, customTimestamp);
+      
       setShowModal(false);
       setForm({
         type: TransactionType.CASH_OUT,
         category: '',
         amount: 0,
-        description: ''
+        description: '',
+        manualDate: ''
       });
     }
   };
@@ -111,7 +118,7 @@ const Transactions: React.FC = () => {
   return (
     <div className="space-y-4 animate-in fade-in duration-500">
       
-      {/* Optimized Header Banner - Ultra Compact Icon on Mobile (Size 4) */}
+      {/* Optimized Header Banner */}
       <div className="bg-slate-900 text-white p-4 lg:px-8 rounded-3xl shadow-xl flex flex-col md:flex-row items-center justify-between gap-4 border border-slate-800">
         <div className="flex items-center gap-3 lg:gap-4">
           <div className="p-0.5 lg:p-3 bg-blue-500/20 rounded-lg lg:rounded-2xl border border-blue-500/20 text-blue-400 shrink-0">
@@ -165,7 +172,6 @@ const Transactions: React.FC = () => {
               />
             </div>
             
-            {/* Optimized Date Filter - 2 Columns 1 Row on Mobile */}
             <div className="flex flex-col gap-2 bg-slate-50 dark:bg-slate-800 p-2 rounded-xl border-2 border-slate-100 dark:border-slate-700">
               <div className="grid grid-cols-2 gap-2 w-full lg:flex lg:flex-row lg:items-center">
                 <div className="flex flex-col gap-0.5 min-w-0">
@@ -335,6 +341,19 @@ const Transactions: React.FC = () => {
               <div className="space-y-1.5">
                 <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Nominal (Rp)</label>
                 <input required type="number" placeholder="0" className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-100 text-xl font-black tracking-tighter text-black dark:text-white" value={form.amount || ''} onChange={(e) => setForm({...form, amount: Number(e.target.value)})} />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Tanggal (Opsional - Default Hari Ini)</label>
+                <div className="relative">
+                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
+                  <input 
+                    type="date" 
+                    className="w-full pl-11 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-100 text-[10px] font-black text-black dark:text-white"
+                    value={form.manualDate}
+                    onChange={(e) => setForm({...form, manualDate: e.target.value})}
+                  />
+                </div>
               </div>
 
               <div className="space-y-1.5">

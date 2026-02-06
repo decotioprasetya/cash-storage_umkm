@@ -1,4 +1,5 @@
 
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase, isCloudReady } from './supabase';
 import { 
@@ -8,18 +9,19 @@ import {
 
 interface AppContextType {
   state: AppState;
-  addBatch: (data: Omit<Batch, 'id' | 'createdAt'>) => Promise<void>;
+  addBatch: (data: Omit<Batch, 'id' | 'createdAt'>, customDate?: number) => Promise<void>;
   deleteBatch: (id: string) => Promise<void>;
   runProduction: (
     productName: string, 
     quantity: number, 
     ingredients: { productName: string, quantity: number }[],
-    operationalCosts: { amount: number, description: string }[]
+    operationalCosts: { amount: number, description: string }[],
+    customDate?: number
   ) => Promise<void>;
   deleteProduction: (id: string) => Promise<void>;
-  runSale: (productName: string, quantity: number, pricePerUnit: number) => Promise<void>;
+  runSale: (productName: string, quantity: number, pricePerUnit: number, customDate?: number) => Promise<void>;
   deleteSale: (id: string) => Promise<void>;
-  addManualTransaction: (data: Omit<Transaction, 'id' | 'createdAt'>) => Promise<void>;
+  addManualTransaction: (data: Omit<Transaction, 'id' | 'createdAt'>, customDate?: number) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
   updateSettings: (settings: Partial<AppSettings>) => void;
   syncLocalToCloud: () => Promise<void>;
@@ -147,12 +149,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const addBatch = async (data: Omit<Batch, 'id' | 'createdAt'>) => {
-    const newBatch: Batch = { ...data, id: crypto.randomUUID(), createdAt: Date.now() };
+  const addBatch = async (data: Omit<Batch, 'id' | 'createdAt'>, customDate?: number) => {
+    const timestamp = customDate || Date.now();
+    const newBatch: Batch = { ...data, id: crypto.randomUUID(), createdAt: timestamp };
     const newTransaction: Transaction = {
       id: crypto.randomUUID(), type: TransactionType.CASH_OUT, category: TransactionCategory.STOCK_PURCHASE,
       amount: data.buyPrice * data.initialQuantity, description: `Beli Stok: ${data.productName}`,
-      createdAt: Date.now(), relatedId: newBatch.id
+      createdAt: timestamp, relatedId: newBatch.id
     };
     if (isCloudReady && state.user && state.settings.useCloud) {
       await Promise.all([
@@ -175,7 +178,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setState(prev => ({ ...prev, batches: prev.batches.filter(b => b.id !== id), transactions: prev.transactions.filter(t => t.relatedId !== id) }));
   };
 
-  const runProduction = async (productName: string, quantity: number, ingredients: { productName: string, quantity: number }[], operationalCosts: { amount: number, description: string }[]) => {
+  const runProduction = async (productName: string, quantity: number, ingredients: { productName: string, quantity: number }[], operationalCosts: { amount: number, description: string }[], customDate?: number) => {
+    const timestamp = customDate || Date.now();
     const productionId = crypto.randomUUID();
     let totalMaterialCost = 0;
     const usages: ProductionUsage[] = [];
@@ -195,11 +199,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     const totalOpCost = operationalCosts.reduce((sum, c) => sum + c.amount, 0);
     const totalHPP = totalMaterialCost + totalOpCost;
-    const resultBatch: Batch = { id: crypto.randomUUID(), productName, initialQuantity: quantity, currentQuantity: quantity, buyPrice: totalHPP / quantity, stockType: StockType.FOR_SALE, createdAt: Date.now() };
-    const production: ProductionRecord = { id: productionId, outputProductName: productName, outputQuantity: quantity, totalHPP, createdAt: Date.now(), batchIdCreated: resultBatch.id };
+    const resultBatch: Batch = { id: crypto.randomUUID(), productName, initialQuantity: quantity, currentQuantity: quantity, buyPrice: totalHPP / quantity, stockType: StockType.FOR_SALE, createdAt: timestamp };
+    const production: ProductionRecord = { id: productionId, outputProductName: productName, outputQuantity: quantity, totalHPP, createdAt: timestamp, batchIdCreated: resultBatch.id };
     const newTx = operationalCosts.filter(c => c.amount > 0).map(c => ({
       id: crypto.randomUUID(), type: TransactionType.CASH_OUT, category: TransactionCategory.PRODUCTION_COST,
-      amount: c.amount, description: `PRODUKSI ${productName} (${c.description})`, createdAt: Date.now(), relatedId: productionId
+      amount: c.amount, description: `PRODUKSI ${productName} (${c.description})`, createdAt: timestamp, relatedId: productionId
     }));
     if (isCloudReady && state.user && state.settings.useCloud) {
       await Promise.all([
@@ -237,7 +241,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setState(prev => ({ ...prev, batches: updatedBatches, productions: prev.productions.filter(p => p.id !== id), productionUsages: prev.productionUsages.filter(u => u.productionId !== id), transactions: prev.transactions.filter(t => t.relatedId !== id) }));
   };
 
-  const runSale = async (productName: string, quantity: number, pricePerUnit: number) => {
+  const runSale = async (productName: string, quantity: number, pricePerUnit: number, customDate?: number) => {
+    const timestamp = customDate || Date.now();
     let needed = quantity;
     let totalCOGS = 0;
     let updatedBatches = [...state.batches];
@@ -251,8 +256,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       totalCOGS += take * batch.buyPrice;
     }
     const saleId = crypto.randomUUID();
-    const sale: SaleRecord = { id: saleId, productName, quantity, salePrice: pricePerUnit, totalRevenue: quantity * pricePerUnit, totalCOGS, createdAt: Date.now() };
-    const tx: Transaction = { id: crypto.randomUUID(), type: TransactionType.CASH_IN, category: TransactionCategory.SALES, amount: sale.totalRevenue, description: `PENJUALAN: ${productName}`, createdAt: Date.now(), relatedId: saleId };
+    const sale: SaleRecord = { id: saleId, productName, quantity, salePrice: pricePerUnit, totalRevenue: quantity * pricePerUnit, totalCOGS, createdAt: timestamp };
+    const tx: Transaction = { id: crypto.randomUUID(), type: TransactionType.CASH_IN, category: TransactionCategory.SALES, amount: sale.totalRevenue, description: `PENJUALAN: ${productName}`, createdAt: timestamp, relatedId: saleId };
     if (isCloudReady && state.user && state.settings.useCloud) {
       await Promise.all([
         supabase.from('batches').upsert(updatedBatches.map(i => ({...i, user_id: state.user.id}))),
@@ -287,8 +292,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setState(prev => ({ ...prev, batches: updatedBatches, sales: prev.sales.filter(s => s.id !== id), transactions: prev.transactions.filter(t => t.relatedId !== id) }));
   };
 
-  const addManualTransaction = async (data: Omit<Transaction, 'id' | 'createdAt'>) => {
-    const newTx: Transaction = { ...data, id: crypto.randomUUID(), createdAt: Date.now() };
+  const addManualTransaction = async (data: Omit<Transaction, 'id' | 'createdAt'>, customDate?: number) => {
+    const timestamp = customDate || Date.now();
+    const newTx: Transaction = { ...data, id: crypto.randomUUID(), createdAt: timestamp };
     if (isCloudReady && state.user && state.settings.useCloud) await supabase.from('transactions').insert({...newTx, user_id: state.user.id});
     setState(prev => ({ ...prev, transactions: [...prev.transactions, newTx] }));
   };

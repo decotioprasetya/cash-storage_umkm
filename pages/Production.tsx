@@ -1,6 +1,7 @@
+
 import React, { useState } from 'react';
 import { useApp } from '../store';
-import { Factory, Trash2, Plus, Info, Wallet } from 'lucide-react';
+import { Factory, Trash2, Plus, Info, Wallet, Calendar } from 'lucide-react';
 import { StockType, TransactionCategory } from '../types';
 
 const Production: React.FC = () => {
@@ -9,6 +10,7 @@ const Production: React.FC = () => {
 
   const [outputName, setOutputName] = useState('');
   const [outputQty, setOutputQty] = useState(0);
+  const [manualDate, setManualDate] = useState('');
   const [ingredients, setIngredients] = useState<{ productName: string, quantity: number }[]>([
     { productName: '', quantity: 0 }
   ]);
@@ -61,7 +63,8 @@ const Production: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (outputName && outputQty > 0 && ingredients.every(i => i.productName && i.quantity > 0)) {
-      runProduction(outputName, outputQty, ingredients, opCosts);
+      const customTimestamp = manualDate ? new Date(manualDate).getTime() : undefined;
+      runProduction(outputName, outputQty, ingredients, opCosts, customTimestamp);
       setShowModal(false);
       resetForm();
     }
@@ -70,6 +73,7 @@ const Production: React.FC = () => {
   const resetForm = () => {
     setOutputName('');
     setOutputQty(0);
+    setManualDate('');
     setIngredients([{ productName: '', quantity: 0 }]);
     setOpCosts([{ amount: 0, description: '' }]);
   };
@@ -228,6 +232,20 @@ const Production: React.FC = () => {
                 </div>
               </div>
 
+              {/* Manual Date Input */}
+              <div className="space-y-2">
+                <label className="text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">Tanggal Produksi (Opsional - Default Hari Ini)</label>
+                <div className="relative">
+                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
+                  <input 
+                    type="date" 
+                    className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white font-black text-xs"
+                    value={manualDate}
+                    onChange={(e) => setManualDate(e.target.value)}
+                  />
+                </div>
+              </div>
+
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <label className="text-[9px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest ml-1">Komposisi Bahan Baku</label>
@@ -286,7 +304,7 @@ const Production: React.FC = () => {
                   <button 
                     type="button"
                     onClick={addCostRow}
-                    className="text-[9px] font-black text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 px-4 py-2 rounded-xl flex items-center gap-2 transition-all uppercase tracking-widest border border-rose-100 dark:border-rose-500/20"
+                    className="text-[9px] font-black text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-blue-500/20 px-4 py-2 rounded-xl flex items-center gap-2 transition-all uppercase tracking-widest border border-rose-100 dark:border-rose-500/20"
                   >
                     <Plus size={14} strokeWidth={3} /> Tambah Biaya
                   </button>
@@ -332,7 +350,7 @@ const Production: React.FC = () => {
                 <div className="space-y-1">
                   <p className="text-[10px] font-black text-amber-900 dark:text-amber-200 uppercase tracking-tight">Informasi Akuntansi</p>
                   <p className="text-[9px] text-amber-800 dark:text-amber-300 font-bold uppercase leading-relaxed tracking-wider opacity-80">
-                    Biaya operasional akan memotong KAS secara otomatis. Sistem akan mengambil stok bahan baku secara berurutan (FIFO) dari batch tertua hingga batch terbaru secara otomatis.
+                    Biaya operasional akan memotong KAS secara otomatis sesuai tanggal yang dipilih. Sistem akan mengambil stok bahan baku secara berurutan (FIFO) dari batch tertua.
                   </p>
                 </div>
               </div>

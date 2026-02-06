@@ -1,10 +1,11 @@
 
+
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../store';
 import { 
   Plus, Trash2, Search, Filter, Layers, PackageCheck, 
   Boxes, Calculator, ArrowUpRight, ArrowDownLeft, History,
-  Eye, EyeOff
+  Eye, EyeOff, Calendar
 } from 'lucide-react';
 import { StockType } from '../types';
 
@@ -20,22 +21,29 @@ const Inventory: React.FC = () => {
     productName: '',
     initialQuantity: 0,
     buyPrice: 0,
-    stockType: StockType.FOR_PRODUCTION
+    stockType: StockType.FOR_PRODUCTION,
+    manualDate: ''
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.productName && formData.initialQuantity > 0) {
+      const customTimestamp = formData.manualDate ? new Date(formData.manualDate).getTime() : undefined;
       addBatch({
-        ...formData,
+        productName: formData.productName,
+        initialQuantity: formData.initialQuantity,
+        buyPrice: formData.buyPrice,
+        stockType: formData.stockType,
         currentQuantity: formData.initialQuantity
-      });
+      }, customTimestamp);
+      
       setShowModal(false);
       setFormData({
         productName: '',
         initialQuantity: 0,
         buyPrice: 0,
-        stockType: StockType.FOR_PRODUCTION
+        stockType: StockType.FOR_PRODUCTION,
+        manualDate: ''
       });
     }
   };
@@ -127,7 +135,6 @@ const Inventory: React.FC = () => {
                 />
               </div>
               
-              {/* Ultra-Compact Filter Row - Fixed 1 Row for Mobile */}
               <div className="flex flex-row items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 flex-nowrap">
                 <div className="flex items-center gap-0.5 bg-slate-50 dark:bg-slate-800 p-0.5 rounded-xl border-2 border-slate-100 dark:border-slate-800 shrink-0">
                   {[
@@ -324,6 +331,20 @@ const Inventory: React.FC = () => {
                   <input required type="number" placeholder="Rp 0" className="w-full px-4 lg:px-5 py-3 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white dark:focus:bg-slate-700 text-black dark:text-white font-black text-[10px] lg:text-xs transition-all" value={formData.buyPrice || ''} onChange={(e) => setFormData({...formData, buyPrice: Number(e.target.value)})} />
                 </div>
               </div>
+
+              <div className="space-y-1.5 lg:space-y-2">
+                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Tanggal (Opsional - Default Hari Ini)</label>
+                <div className="relative">
+                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
+                  <input 
+                    type="date" 
+                    className="w-full pl-11 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-black dark:text-white font-black text-[10px] lg:text-xs"
+                    value={formData.manualDate}
+                    onChange={(e) => setFormData({...formData, manualDate: e.target.value})}
+                  />
+                </div>
+              </div>
+
               <div className="space-y-1.5 lg:space-y-2">
                 <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Tujuan Stok</label>
                 <div className="grid grid-cols-2 gap-3">

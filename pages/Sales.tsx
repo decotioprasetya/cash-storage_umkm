@@ -1,7 +1,8 @@
 
+
 import React, { useState } from 'react';
 import { useApp } from '../store';
-import { ShoppingCart, Plus, Trash2, TrendingUp, Search, Info } from 'lucide-react';
+import { ShoppingCart, Plus, Trash2, TrendingUp, Search, Info, Calendar } from 'lucide-react';
 import { StockType } from '../types';
 
 const Sales: React.FC = () => {
@@ -12,6 +13,7 @@ const Sales: React.FC = () => {
   const [productName, setProductName] = useState('');
   const [quantity, setQuantity] = useState(0);
   const [price, setPrice] = useState(0);
+  const [manualDate, setManualDate] = useState('');
 
   // Menghitung total stok tersedia per produk yang siap jual (FOR_SALE)
   const availableToSellInfo = state.batches
@@ -30,7 +32,8 @@ const Sales: React.FC = () => {
         alert("JUMLAH PENJUALAN MELEBIHI STOK TERSEDIA!");
         return;
       }
-      runSale(productName, quantity, price);
+      const customTimestamp = manualDate ? new Date(manualDate).getTime() : undefined;
+      runSale(productName, quantity, price, customTimestamp);
       setShowModal(false);
       resetForm();
     }
@@ -40,6 +43,7 @@ const Sales: React.FC = () => {
     setProductName('');
     setQuantity(0);
     setPrice(0);
+    setManualDate('');
   };
 
   const formatIDR = (val: number) => {
@@ -195,6 +199,20 @@ const Sales: React.FC = () => {
                 </div>
               </div>
 
+              {/* Manual Date Input */}
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-700">Tanggal Penjualan (Opsional - Default Hari Ini)</label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
+                  <input 
+                    type="date" 
+                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 text-black font-semibold"
+                    value={manualDate}
+                    onChange={(e) => setManualDate(e.target.value)}
+                  />
+                </div>
+              </div>
+
               <div className="p-5 bg-green-50 rounded-2xl border border-green-100 flex items-center justify-between">
                 <div className="flex flex-col">
                   <span className="text-[10px] font-black text-green-600 uppercase tracking-widest">Total Pendapatan</span>
@@ -208,7 +226,7 @@ const Sales: React.FC = () => {
               <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex gap-3">
                 <Info size={18} className="text-amber-600 shrink-0 mt-0.5" />
                 <p className="text-[9px] text-amber-800 font-bold uppercase leading-relaxed tracking-wider">
-                  Sistem menggunakan metode FIFO. Stok dari batch yang paling lama masuk akan otomatis dipotong terlebih dahulu.
+                  Sistem menggunakan metode FIFO. Stok dari batch tertua akan dipotong terlebih dahulu sesuai tanggal transaksi yang dicatat.
                 </p>
               </div>
 

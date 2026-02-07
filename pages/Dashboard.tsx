@@ -21,6 +21,10 @@ const Dashboard: React.FC = () => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
   };
 
+  const formatQty = (val: number) => {
+    return val.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
   // Recent data for chart
   const recentTransactions = [...state.transactions]
     .sort((a, b) => b.createdAt - a.createdAt)
@@ -108,7 +112,7 @@ const Dashboard: React.FC = () => {
                 <div key={i} className="flex items-center justify-between p-3 lg:p-4 bg-rose-50 dark:bg-rose-500/10 border border-rose-100 dark:border-rose-500/20 rounded-xl">
                   <div className="min-w-0">
                     <p className="font-black text-rose-900 dark:text-rose-400 text-[10px] lg:text-xs uppercase truncate">{batch.productName}</p>
-                    <p className="text-[9px] text-rose-600 dark:text-rose-500 font-bold uppercase tracking-wider">Sisa {batch.currentQuantity} unit</p>
+                    <p className="text-[9px] text-rose-600 dark:text-rose-500 font-bold uppercase tracking-wider">Sisa {formatQty(batch.currentQuantity)} unit</p>
                   </div>
                   <div className="text-rose-400 shrink-0">
                     <Package size={18} />

@@ -1,11 +1,11 @@
 
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../store';
 import { 
   Plus, Trash2, Search, Filter, Layers, PackageCheck, 
   Boxes, Calculator, ArrowUpRight, ArrowDownLeft, History,
-  Eye, EyeOff, Calendar
+  Eye, EyeOff, Calendar, Tag, CircleDollarSign
 } from 'lucide-react';
 import { StockType } from '../types';
 
@@ -14,16 +14,32 @@ const Inventory: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<'ALL' | StockType>('ALL');
-  const [showEmpty, setShowEmpty] = useState(false); // Default: Sembunyikan stok habis
+  const [showEmpty, setShowEmpty] = useState(false);
   
   // Form State
   const [formData, setFormData] = useState({
     productName: '',
     initialQuantity: 0,
     buyPrice: 0,
+    totalPrice: 0,
     stockType: StockType.FOR_PRODUCTION,
     manualDate: ''
   });
+
+  const handleUnitPriceChange = (val: number) => {
+    const total = val * formData.initialQuantity;
+    setFormData(prev => ({ ...prev, buyPrice: val, totalPrice: total }));
+  };
+
+  const handleTotalPriceChange = (val: number) => {
+    const unit = formData.initialQuantity > 0 ? val / formData.initialQuantity : 0;
+    setFormData(prev => ({ ...prev, totalPrice: val, buyPrice: unit }));
+  };
+
+  const handleQuantityChange = (val: number) => {
+    const total = val * formData.buyPrice;
+    setFormData(prev => ({ ...prev, initialQuantity: val, totalPrice: total }));
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,6 +58,7 @@ const Inventory: React.FC = () => {
         productName: '',
         initialQuantity: 0,
         buyPrice: 0,
+        totalPrice: 0,
         stockType: StockType.FOR_PRODUCTION,
         manualDate: ''
       });
@@ -101,6 +118,10 @@ const Inventory: React.FC = () => {
 
   const formatIDR = (val: number) => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
+  };
+
+  const formatQty = (val: number) => {
+    return val.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
   return (
@@ -211,9 +232,9 @@ const Inventory: React.FC = () => {
                               batch.currentQuantity === 0 ? 'text-slate-400' : 
                               batch.currentQuantity < 5 ? 'text-rose-600' : 'text-slate-900 dark:text-slate-200'
                             }`}>
-                              {batch.currentQuantity}
+                              {formatQty(batch.currentQuantity)}
                             </span>
-                            <span className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">/ {batch.initialQuantity}</span>
+                            <span className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">/ {formatQty(batch.initialQuantity)}</span>
                           </div>
                           <div className="w-full h-1 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                             <div 
@@ -296,7 +317,7 @@ const Inventory: React.FC = () => {
                     <span className={`text-[9px] lg:text-[10px] font-black tracking-tighter ${
                       flow.type === 'IN' ? 'text-emerald-600' : 'text-rose-600'
                     }`}>
-                      {flow.type === 'IN' ? '+' : '-'}{flow.quantity}
+                      {flow.type === 'IN' ? '+' : '-'}{formatQty(flow.quantity)}
                     </span>
                   </div>
                   <p className="text-[8px] lg:text-[9px] text-slate-500 dark:text-slate-400 font-bold uppercase mt-0.5 truncate">{flow.reason}</p>
@@ -309,50 +330,66 @@ const Inventory: React.FC = () => {
 
       {showModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[100] flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[2rem] lg:rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in duration-200">
-            <div className="px-6 lg:px-8 py-4 lg:py-6 border-b dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50">
-              <h3 className="text-base lg:text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Input Stok Baru</h3>
-              <button onClick={() => setShowModal(false)} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-all">
-                <Plus className="rotate-45" size={20} />
+          <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-[1.5rem] lg:rounded-[2rem] shadow-2xl overflow-hidden animate-in zoom-in duration-200">
+            <div className="px-5 lg:px-6 py-4 border-b dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50">
+              <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Input Stok Baru</h3>
+              <button onClick={() => setShowModal(false)} className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-all">
+                <Plus className="rotate-45" size={18} />
               </button>
             </div>
-            <form onSubmit={handleSubmit} className="p-6 lg:p-8 space-y-4 lg:space-y-6">
-              <div className="space-y-1.5 lg:space-y-2">
-                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Nama Barang</label>
-                <input required type="text" placeholder="MISAL: TEPUNG TERIGU" className="w-full px-4 lg:px-5 py-3 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white dark:focus:bg-slate-700 uppercase text-black dark:text-white font-black text-[10px] lg:text-xs transition-all" value={formData.productName} onChange={(e) => setFormData({...formData, productName: e.target.value.toUpperCase()})} />
+            <form onSubmit={handleSubmit} className="p-5 lg:p-6 space-y-4">
+              <div className="space-y-1">
+                <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">Nama Barang</label>
+                <input required type="text" placeholder="MISAL: TEPUNG TERIGU" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase text-black dark:text-white font-black text-[10px] transition-all" value={formData.productName} onChange={(e) => setFormData({...formData, productName: e.target.value.toUpperCase()})} />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5 lg:space-y-2">
-                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Kuantitas</label>
-                  <input required type="number" placeholder="0" className="w-full px-4 lg:px-5 py-3 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white dark:focus:bg-slate-700 text-black dark:text-white font-black text-[10px] lg:text-xs transition-all" value={formData.initialQuantity || ''} onChange={(e) => setFormData({...formData, initialQuantity: Number(e.target.value)})} />
+              
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">Kuantitas</label>
+                  <input required type="number" step="0.01" placeholder="0.00" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-black dark:text-white font-black text-[10px] transition-all" value={formData.initialQuantity || ''} onChange={(e) => handleQuantityChange(Number(e.target.value))} />
                 </div>
-                <div className="space-y-1.5 lg:space-y-2">
-                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Harga Beli / Unit</label>
-                  <input required type="number" placeholder="Rp 0" className="w-full px-4 lg:px-5 py-3 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white dark:focus:bg-slate-700 text-black dark:text-white font-black text-[10px] lg:text-xs transition-all" value={formData.buyPrice || ''} onChange={(e) => setFormData({...formData, buyPrice: Number(e.target.value)})} />
-                </div>
-              </div>
-
-              <div className="space-y-1.5 lg:space-y-2">
-                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Tanggal (Opsional - Default Hari Ini)</label>
-                <div className="relative">
-                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
-                  <input 
-                    type="date" 
-                    className="w-full pl-11 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-black dark:text-white font-black text-[10px] lg:text-xs"
-                    value={formData.manualDate}
-                    onChange={(e) => setFormData({...formData, manualDate: e.target.value})}
-                  />
+                <div className="space-y-1">
+                  <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">Tanggal Transaksi</label>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+                    <input type="date" className="w-full pl-9 pr-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-black dark:text-white font-black text-[10px]" value={formData.manualDate} onChange={(e) => setFormData({...formData, manualDate: e.target.value})} />
+                  </div>
                 </div>
               </div>
 
-              <div className="space-y-1.5 lg:space-y-2">
-                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Tujuan Stok</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button type="button" onClick={() => setFormData({...formData, stockType: StockType.FOR_PRODUCTION})} className={`py-3 rounded-xl border-2 transition-all font-black text-[9px] lg:text-[10px] flex items-center justify-center gap-2 uppercase ${formData.stockType === StockType.FOR_PRODUCTION ? 'border-amber-500 bg-amber-50 dark:bg-amber-500/10 text-amber-700' : 'border-slate-50 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-slate-400'}`}><Layers size={14} /> Bahan Produksi</button>
-                  <button type="button" onClick={() => setFormData({...formData, stockType: StockType.FOR_SALE})} className={`py-3 rounded-xl border-2 transition-all font-black text-[9px] lg:text-[10px] flex items-center justify-center gap-2 uppercase ${formData.stockType === StockType.FOR_SALE ? 'border-blue-500 bg-blue-50 dark:bg-blue-500/10 text-blue-700' : 'border-slate-50 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-slate-400'}`}><PackageCheck size={14} /> Barang Jadi</button>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">HPP / Unit</label>
+                  <input required type="number" placeholder="Rp 0" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-black dark:text-white font-black text-[10px] transition-all" value={formData.buyPrice || ''} onChange={(e) => handleUnitPriceChange(Number(e.target.value))} />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[8px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest ml-1">Total Nota</label>
+                  <input required type="number" placeholder="Total Rp" className="w-full px-4 py-2.5 bg-blue-50/50 dark:bg-blue-500/5 border-2 border-blue-100 dark:border-blue-500/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-blue-900 dark:text-blue-100 font-black text-[10px] transition-all" value={formData.totalPrice || ''} onChange={(e) => handleTotalPriceChange(Number(e.target.value))} />
                 </div>
               </div>
-              <button type="submit" className="w-full py-4 bg-slate-900 dark:bg-blue-600 hover:bg-black dark:hover:bg-blue-500 text-white font-black rounded-2xl shadow-xl transition-all active:scale-95 uppercase text-[9px] lg:text-[10px] tracking-widest">Simpan Stok</button>
+
+              <div className="space-y-1">
+                <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">Tujuan Stok</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => setFormData({...formData, stockType: StockType.FOR_PRODUCTION})} className={`py-2 rounded-lg border-2 transition-all font-black text-[9px] flex items-center justify-center gap-1.5 uppercase ${formData.stockType === StockType.FOR_PRODUCTION ? 'border-amber-500 bg-amber-50 dark:bg-amber-500/10 text-amber-700' : 'border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-slate-400'}`}><Layers size={12} /> Bahan Produksi</button>
+                  <button type="button" onClick={() => setFormData({...formData, stockType: StockType.FOR_SALE})} className={`py-2 rounded-lg border-2 transition-all font-black text-[9px] flex items-center justify-center gap-1.5 uppercase ${formData.stockType === StockType.FOR_SALE ? 'border-blue-500 bg-blue-50 dark:bg-blue-500/10 text-blue-700' : 'border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-slate-400'}`}><PackageCheck size={12} /> Barang Jadi</button>
+                </div>
+              </div>
+              <div className="pt-2 flex gap-3">
+                <button 
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-50 rounded-xl transition-colors uppercase text-[9px] tracking-widest"
+                >
+                  Batal
+                </button>
+                <button 
+                  type="submit" 
+                  className="flex-[2] py-3 bg-slate-900 dark:bg-blue-600 hover:bg-black dark:hover:bg-blue-500 text-white font-black rounded-xl shadow-lg transition-all active:scale-95 uppercase text-[9px] tracking-widest"
+                >
+                  Simpan Stok
+                </button>
+              </div>
             </form>
           </div>
         </div>

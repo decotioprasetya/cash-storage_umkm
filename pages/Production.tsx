@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { useApp } from '../store';
 import { Factory, Trash2, Plus, Info, Wallet, Calendar } from 'lucide-react';
@@ -82,6 +83,10 @@ const Production: React.FC = () => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
   };
 
+  const formatQty = (val: number) => {
+    return val.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
@@ -122,7 +127,7 @@ const Production: React.FC = () => {
                   <div className="mt-6 md:mt-0 flex flex-wrap items-center gap-6 lg:gap-10">
                     <div className="text-right">
                       <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Kuantitas</p>
-                      <p className="text-xl font-black text-slate-900 dark:text-white tracking-tighter">{prod.outputQuantity} Unit</p>
+                      <p className="text-xl font-black text-slate-900 dark:text-white tracking-tighter">{formatQty(prod.outputQuantity)} Unit</p>
                     </div>
                     <div className="text-right">
                       <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">HPP Per Unit</p>
@@ -159,7 +164,7 @@ const Production: React.FC = () => {
                                 </div>
                                 <p className="text-[10px] font-black text-slate-900 dark:text-slate-100 uppercase">{batch?.productName || '???'}</p>
                               </div>
-                              <p className="text-[10px] font-black text-slate-500 dark:text-slate-400">{usage.quantityUsed} UNIT <span className="mx-1 opacity-20">|</span> {formatIDR(usage.costPerUnit)}</p>
+                              <p className="text-[10px] font-black text-slate-500 dark:text-slate-400">{formatQty(usage.quantityUsed)} UNIT <span className="mx-1 opacity-20">|</span> {formatIDR(usage.costPerUnit)}</p>
                             </div>
                           );
                         })}
@@ -224,7 +229,8 @@ const Production: React.FC = () => {
                   <input 
                     required
                     type="number" 
-                    placeholder="0"
+                    step="0.01"
+                    placeholder="0.00"
                     className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white dark:focus:bg-slate-700 text-slate-900 dark:text-white font-black text-xs transition-all"
                     value={outputQty || ''}
                     onChange={(e) => setOutputQty(Number(e.target.value))}
@@ -271,7 +277,7 @@ const Production: React.FC = () => {
                           <option value="">-- PILIH BAHAN --</option>
                           {materialNames.map(m => (
                             <option key={m} value={m}>
-                              {m} (Tersedia: {availableMaterialsInfo[m]})
+                              {m} (Tersedia: {formatQty(availableMaterialsInfo[m])})
                             </option>
                           ))}
                         </select>
@@ -280,7 +286,8 @@ const Production: React.FC = () => {
                         <input 
                           required
                           type="number" 
-                          placeholder="QTY"
+                          step="0.01"
+                          placeholder="0.00"
                           className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-[10px] text-slate-900 dark:text-white font-black transition-all"
                           value={ing.quantity || ''}
                           onChange={(e) => updateIngredient(idx, 'quantity', Number(e.target.value))}

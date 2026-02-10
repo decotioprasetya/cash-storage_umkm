@@ -1,15 +1,17 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '../store';
 import { Factory, Trash2, Plus, Info, Wallet, Calendar, Clock, CheckCircle2, Play, ChevronRight, Edit3 } from 'lucide-react';
-import { StockType, TransactionCategory, ProductionStatus, ProductionRecord } from '../types';
+import { StockType, TransactionCategory, ProductionStatus, ProductionRecord, BatchVariant } from '../types';
 
 const Production: React.FC = () => {
   const { state, runProduction, updateProduction, completeProduction, deleteProduction } = useApp();
   const [showModal, setShowModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState<ProductionRecord | null>(null);
+  const [showCompleteModal, setShowCompleteModal] = useState<ProductionRecord | null>(null);
   const [activeView, setActiveView] = useState<'ONGOING' | 'HISTORY'>('ONGOING');
 
+  // Form New Production
   const [outputName, setOutputName] = useState('');
   const [outputQty, setOutputQty] = useState('' as string | number);
   const [manualDate, setManualDate] = useState('');
@@ -19,6 +21,10 @@ const Production: React.FC = () => {
   const [opCosts, setOpCosts] = useState<{ amount: string | number, description: string }[]>([
     { amount: '', description: '' }
   ]);
+
+  // Form Complete Production
+  const [actualQty, setActualQty] = useState('' as string | number);
+  const [completeVariants, setCompleteVariants] = useState<BatchVariant[]>([]);
 
   const sanitizeNumeric = (val: string) => {
     let sanitized = val.replace(/,/g, '.').replace(/[^0-9.]/g, '');
@@ -85,7 +91,7 @@ const Production: React.FC = () => {
     const validIngredients = ingredients.map(i => ({ ...i, quantity: Number(i.quantity) }));
     const validCosts = opCosts.map(c => ({ ...c, amount: Number(c.amount) }));
 
-    if (outputName && qty > 0 && validIngredients.every(i => i.productName && i.quantity > 0)) {
+    if (outputName && qty >= 0 && validIngredients.every(i => i.productName && i.quantity > 0)) {
       const customTimestamp = manualDate ? new Date(manualDate).getTime() : undefined;
       runProduction(outputName, qty, validIngredients, validCosts, customTimestamp);
       setShowModal(false);
@@ -104,6 +110,26 @@ const Production: React.FC = () => {
     }
   };
 
+  const handleCompleteSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!showCompleteModal) return;
+    
+    const qty = Number(actualQty);
+    if (qty < 0) {
+      alert("HASIL RIIL TIDAK BOLEH NEGATIF!");
+      return;
+    }
+
+    const variantTotal = completeVariants.reduce((sum, v) => sum + v.quantity, 0);
+    if (completeVariants.length > 0 && variantTotal !== qty) {
+      alert(`TOTAL KUANTITAS VARIAN (${variantTotal}) HARUS SAMA DENGAN HASIL AKTUAL (${qty})!`);
+      return;
+    }
+
+    completeProduction(showCompleteModal.id, qty, completeVariants.length > 0 ? completeVariants : undefined);
+    setShowCompleteModal(null);
+  };
+
   const resetForm = () => {
     setOutputName('');
     setOutputQty('');
@@ -117,7 +143,25 @@ const Production: React.FC = () => {
   };
 
   const formatQty = (val: number) => {
-    return val.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return val.toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  };
+
+  const addCompleteVariant = () => {
+    setCompleteVariants([...completeVariants, { id: crypto.randomUUID(), label: '', quantity: 0 }]);
+  };
+
+  const updateCompleteVariant = (idx: number, field: keyof BatchVariant, val: any) => {
+    const updated = [...completeVariants];
+    if (field === 'quantity') {
+      updated[idx][field] = Number(sanitizeNumeric(val.toString()));
+    } else {
+      updated[idx][field] = val;
+    }
+    setCompleteVariants(updated);
+  };
+
+  const removeCompleteVariant = (idx: number) => {
+    setCompleteVariants(completeVariants.filter((_, i) => i !== idx));
   };
 
   const renderProductionCard = (prod: ProductionRecord) => {
@@ -144,11 +188,11 @@ const Production: React.FC = () => {
 
           <div className="mt-6 md:mt-0 flex flex-wrap items-center gap-6 lg:gap-10 text-white">
             <div className="text-right">
-              <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Target Qty</p>
+              <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">{isOngoing ? 'Target Qty' : 'Hasil Akhir'}</p>
               <p className="text-xl font-black text-slate-900 dark:text-white tracking-tighter">{formatQty(prod.outputQuantity)} Unit</p>
             </div>
             <div className="text-right">
-              <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Biaya Terkunci</p>
+              <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Total Biaya</p>
               <p className="text-xl font-black text-blue-600 dark:text-blue-400 tracking-tighter">{formatIDR(prod.totalHPP)}</p>
             </div>
             
@@ -166,7 +210,11 @@ const Production: React.FC = () => {
                     <Edit3 size={20} />
                   </button>
                   <button 
-                    onClick={() => completeProduction(prod.id)}
+                    onClick={() => {
+                      setActualQty(prod.outputQuantity.toString());
+                      setCompleteVariants([]);
+                      setShowCompleteModal(prod);
+                    }}
                     className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-emerald-500/20 transition-all active:scale-95"
                   >
                     <CheckCircle2 size={14} strokeWidth={3} />
@@ -188,7 +236,7 @@ const Production: React.FC = () => {
         <div className="p-8 grid grid-cols-1 lg:grid-cols-2 gap-8 text-white">
           <div>
             <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <Plus size={12} className="text-blue-500" /> Bahan Baku Sudah Terpakai
+              <Plus size={12} className="text-blue-500" /> Bahan Baku Terpakai
             </h4>
             <div className="space-y-3">
               {state.productionUsages
@@ -212,7 +260,7 @@ const Production: React.FC = () => {
 
           <div>
             <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <Wallet size={12} className="text-rose-500" /> Biaya Operasional (Kas Berkurang)
+              <Wallet size={12} className="text-rose-500" /> Biaya Operasional Produksi
             </h4>
             <div className="space-y-3">
               {state.transactions
@@ -240,7 +288,7 @@ const Production: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="space-y-1">
           <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight uppercase">Sistem Produksi Pro</h2>
-          <p className="text-slate-500 dark:text-slate-400 text-[10px] font-bold uppercase tracking-wider">Pelacakan Proses & Konversi Realistis</p>
+          <p className="text-slate-500 dark:text-slate-400 text-[10px] font-bold uppercase tracking-wider">Pelacakan Proses & Konversi Hasil Nyata</p>
         </div>
 
         <button 
@@ -283,6 +331,78 @@ const Production: React.FC = () => {
           .map(prod => renderProductionCard(prod))
         }
       </div>
+
+      {/* Completion Modal */}
+      {showCompleteModal && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[110] flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in duration-200">
+            <div className="px-8 py-6 border-b dark:border-slate-800 flex items-center justify-between bg-emerald-50/50 dark:bg-emerald-500/5">
+              <div>
+                <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Selesaikan Produksi</h3>
+                <p className="text-[9px] font-black text-emerald-600 uppercase mt-1">Input Hasil Riil & Varian Produk Jadi</p>
+              </div>
+              <button onClick={() => setShowCompleteModal(null)} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-xl transition-all">
+                <Plus className="rotate-45 text-slate-400" size={24} />
+              </button>
+            </div>
+            <form onSubmit={handleCompleteSubmit} className="p-8 space-y-6 max-h-[80vh] overflow-y-auto no-scrollbar">
+              <div className="bg-blue-50 dark:bg-blue-500/10 p-4 rounded-2xl border border-blue-100 dark:border-blue-500/20">
+                <div className="flex items-center gap-3">
+                  <Info size={18} className="text-blue-600" />
+                  <p className="text-[10px] font-bold text-blue-900 dark:text-blue-300 uppercase leading-relaxed">
+                    Kuantitas target awal adalah <b>{formatQty(showCompleteModal.outputQuantity)} Unit</b>. 
+                    Silahkan masukkan kuantitas yang berhasil diproduksi hari ini.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Kuantitas Hasil Berhasil (Aktual)</label>
+                <input required type="text" inputMode="decimal" placeholder="0" className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900 dark:text-white font-black text-lg transition-all" value={actualQty} onChange={(e) => setActualQty(sanitizeNumeric(e.target.value))} />
+                <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest ml-1">* Barang cacat/gagal tidak perlu dimasukkan, HPP otomatis akan disesuaikan.</p>
+              </div>
+
+              <div className="space-y-4 pt-4 border-t dark:border-slate-800">
+                <div className="flex items-center justify-between">
+                  <label className="text-[9px] font-black text-blue-600 uppercase tracking-widest ml-1">Pecah ke Varian (Opsional)</label>
+                  <button type="button" onClick={addCompleteVariant} className="text-[9px] font-black text-blue-600 bg-blue-50 dark:bg-blue-500/10 px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-blue-100 transition-all uppercase tracking-widest border border-blue-100">
+                    <Plus size={14} strokeWidth={3} /> Tambah Varian
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  {completeVariants.map((v, idx) => (
+                    <div key={v.id} className="flex gap-3 items-center animate-in slide-in-from-left-2 duration-200">
+                      <div className="flex-[2]">
+                        <input required type="text" placeholder="MISAL: UKURAN L" className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-xl text-[10px] text-slate-900 dark:text-white font-black uppercase transition-all" value={v.label} onChange={(e) => updateCompleteVariant(idx, 'label', e.target.value.toUpperCase())} />
+                      </div>
+                      <div className="flex-1">
+                        <input required type="text" inputMode="decimal" placeholder="0" className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-xl text-[10px] text-slate-900 dark:text-white font-black transition-all" value={v.quantity} onChange={(e) => updateCompleteVariant(idx, 'quantity', e.target.value)} />
+                      </div>
+                      <button type="button" onClick={() => removeCompleteVariant(idx)} className="p-3 text-rose-300 hover:text-rose-500 transition-colors">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ))}
+                  {completeVariants.length > 0 && (
+                    <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl text-center border border-dashed dark:border-slate-700">
+                       <p className="text-[9px] font-black uppercase text-slate-500">
+                         Total Varian: <span className={completeVariants.reduce((s,v)=>s+v.quantity,0) === Number(actualQty) ? 'text-emerald-500' : 'text-rose-500'}>
+                           {formatQty(completeVariants.reduce((s,v)=>s+v.quantity,0))} / {formatQty(Number(actualQty))}
+                         </span>
+                       </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="pt-4 flex gap-4">
+                <button type="button" onClick={() => setShowCompleteModal(null)} className="flex-1 py-4 text-slate-400 font-black hover:bg-slate-100 rounded-2xl transition-all uppercase text-[9px] tracking-widest">Batal</button>
+                <button type="submit" className="flex-[2] py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-2xl shadow-xl transition-all active:scale-95 uppercase text-[9px] tracking-widest">Konfirmasi Hasil & Masuk Stok</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Production Edit Modal */}
       {showEditModal && (

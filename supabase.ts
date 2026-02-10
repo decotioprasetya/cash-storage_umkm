@@ -2,8 +2,8 @@
 import { createClient } from '@supabase/supabase-js';
 
 // PENTING: Masukkan URL dan Anon Key dari dashboard Supabase Anda di sini
-const supabaseUrl = 'https://ygocwzsksqaesccymbtn.supabase.co'; 
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlnb2N3enNrc3FhZXNjY3ltYnRuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzNzU4MTAsImV4cCI6MjA4NTk1MTgxMH0.B3mr-qhuqgecFgNPcBjIvJ2qjvPHfZuBgV_MQpH5P7A';
+const supabaseUrl = 'https://esllxkpcgvezvffkgljf.supabase.co'; 
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzbGx4a3BjZ3ZlenZmZmtnbGpmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA2NjU2NzUsImV4cCI6MjA4NjI0MTY3NX0.CDYHtED7IQZFp9TFCQTBYSLVaS8tSeGbvNueeULJV2c';
 
 /**
  * Mencegah error "supabaseUrl is required" saat runtime.

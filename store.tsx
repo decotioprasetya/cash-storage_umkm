@@ -20,7 +20,7 @@ interface AppContextType {
     customDate?: number
   ) => Promise<void>;
   updateProduction: (id: string, data: Partial<ProductionRecord>) => Promise<void>;
-  completeProduction: (id: string) => Promise<void>;
+  completeProduction: (id: string, actualQuantity: number, variants?: BatchVariant[]) => Promise<void>;
   deleteProduction: (id: string) => Promise<void>;
   runSale: (productName: string, quantity: number, pricePerUnit: number, customDate?: number, variantLabel?: string) => Promise<void>;
   updateSale: (id: string, data: Partial<SaleRecord>) => Promise<void>;
@@ -264,28 +264,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setState(prev => ({ ...prev, productions: updatedProductions }));
   };
 
-  const completeProduction = async (id: string) => {
+  const completeProduction = async (id: string, actualQuantity: number, variants?: BatchVariant[]) => {
     const prod = state.productions.find(p => p.id === id);
     if (!prod || prod.status === ProductionStatus.COMPLETED) return;
     
     const timestamp = Date.now();
+    const unitPrice = actualQuantity > 0 ? (prod.totalHPP / actualQuantity) : 0;
+
     const resultBatch: Batch = { 
       id: crypto.randomUUID(), 
       productName: prod.outputProductName, 
-      initialQuantity: prod.outputQuantity, 
-      currentQuantity: prod.outputQuantity, 
-      buyPrice: prod.totalHPP / prod.outputQuantity, 
+      initialQuantity: actualQuantity, 
+      currentQuantity: actualQuantity, 
+      buyPrice: unitPrice, 
       stockType: StockType.FOR_SALE, 
-      createdAt: timestamp 
+      createdAt: timestamp,
+      variants: variants || []
     };
 
     const updatedProductions = state.productions.map(p => 
-      p.id === id ? { ...p, status: ProductionStatus.COMPLETED, completedAt: timestamp, batchIdCreated: resultBatch.id } : p
+      p.id === id ? { 
+        ...p, 
+        status: ProductionStatus.COMPLETED, 
+        completedAt: timestamp, 
+        batchIdCreated: resultBatch.id,
+        outputQuantity: actualQuantity // Update target qty ke hasil nyata
+      } : p
     );
 
     if (isCloudReady && state.user && state.settings.useCloud) {
       await Promise.all([
-        supabase.from('productions').update({ status: ProductionStatus.COMPLETED, completedAt: timestamp, batchIdCreated: resultBatch.id }).eq('id', id),
+        supabase.from('productions').update({ 
+          status: ProductionStatus.COMPLETED, 
+          completedAt: timestamp, 
+          batchIdCreated: resultBatch.id,
+          output_quantity: actualQuantity
+        }).eq('id', id),
         supabase.from('batches').insert({ ...resultBatch, user_id: state.user.id })
       ]);
     }

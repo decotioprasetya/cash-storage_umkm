@@ -109,6 +109,7 @@ export interface Transaction {
   description: string;
   createdAt: number;
   relatedId?: string;
+  paymentMethod: 'CASH' | 'BANK'; // Fitur baru: Sub kategori kas
 }
 
 export interface AppSettings {

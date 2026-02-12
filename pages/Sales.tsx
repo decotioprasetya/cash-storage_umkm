@@ -4,7 +4,7 @@ import { useApp } from '../store';
 import { 
   ShoppingCart, Plus, Trash2, Search, Info, Calendar, 
   CheckCircle2, XCircle, Clock, User, Package, Wallet, 
-  ChevronRight, CircleDollarSign, History, AlertTriangle, Edit3
+  ChevronRight, CircleDollarSign, History, AlertTriangle, Edit3, Landmark as BankIcon
 } from 'lucide-react';
 import { StockType, DPStatus, SaleRecord, DPOrder } from '../types';
 
@@ -15,6 +15,7 @@ const Sales: React.FC = () => {
   const [showEditSaleModal, setShowEditSaleModal] = useState<SaleRecord | null>(null);
   const [showDPModal, setShowDPModal] = useState(false);
   const [showEditDPModal, setShowEditDPModal] = useState<DPOrder | null>(null);
+  const [showCompleteDPModal, setShowCompleteDPModal] = useState<DPOrder | null>(null);
   const [search, setSearch] = useState('');
 
   // Direct Sale Form State
@@ -24,6 +25,7 @@ const Sales: React.FC = () => {
     quantity: '' as string | number,
     price: '' as string | number,
     totalPrice: '' as string | number,
+    paymentMethod: 'CASH' as 'CASH' | 'BANK',
     manualDate: ''
   });
 
@@ -34,8 +36,12 @@ const Sales: React.FC = () => {
     quantity: '' as string | number,
     totalAmount: '' as string | number,
     dpAmount: '' as string | number,
+    paymentMethod: 'CASH' as 'CASH' | 'BANK',
     manualDate: ''
   });
+
+  // Complete DP Form State
+  const [completeDPAccount, setCompleteDPAccount] = useState<'CASH' | 'BANK'>('CASH');
 
   const sanitizeNumeric = (val: string) => {
     let sanitized = val.replace(/,/g, '.').replace(/[^0-9.]/g, '');
@@ -102,7 +108,6 @@ const Sales: React.FC = () => {
     e.preventDefault();
     const qty = Number(saleForm.quantity);
     const price = Number(saleForm.price);
-    const total = Number(saleForm.totalPrice);
 
     if (saleForm.productName && qty > 0 && price > 0) {
       const [name, sub] = saleForm.productName.split('|||');
@@ -114,7 +119,7 @@ const Sales: React.FC = () => {
       }
 
       const customTimestamp = saleForm.manualDate ? new Date(saleForm.manualDate).getTime() : undefined;
-      runSale(selectedItem.name, qty, price, customTimestamp, selectedItem.sub);
+      runSale(selectedItem.name, qty, price, customTimestamp, selectedItem.sub, saleForm.paymentMethod);
       setShowDirectModal(false);
       resetSaleForm();
     }
@@ -153,7 +158,7 @@ const Sales: React.FC = () => {
         quantity: qty,
         totalAmount: total,
         dpAmount: dp
-      }, customTimestamp);
+      }, customTimestamp, dpForm.paymentMethod);
       setShowDPModal(false);
       resetDPForm();
     }
@@ -179,12 +184,20 @@ const Sales: React.FC = () => {
     }
   };
 
+  const handleCompleteDPSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (showCompleteDPModal) {
+      completeDPOrder(showCompleteDPModal.id, undefined, completeDPAccount);
+      setShowCompleteDPModal(null);
+    }
+  };
+
   const resetSaleForm = () => {
-    setSaleForm({ productName: '', variantLabel: '', quantity: '', price: '', totalPrice: '', manualDate: '' });
+    setSaleForm({ productName: '', variantLabel: '', quantity: '', price: '', totalPrice: '', paymentMethod: 'CASH', manualDate: '' });
   };
 
   const resetDPForm = () => {
-    setDpForm({ customerName: '', productName: '', quantity: '', totalAmount: '', dpAmount: '', manualDate: '' });
+    setDpForm({ customerName: '', productName: '', quantity: '', totalAmount: '', dpAmount: '', paymentMethod: 'CASH', manualDate: '' });
   };
 
   const formatIDR = (val: number) => {
@@ -300,7 +313,6 @@ const Sales: React.FC = () => {
                         {sale.variantLabel && (
                           <span className="text-[8px] text-blue-500 font-black uppercase mt-0.5">{sale.variantLabel}</span>
                         )}
-                        {sale.related_order_id && <span className="text-[7px] text-emerald-500 font-black uppercase tracking-tighter mt-1">Pre-Order Link</span>}
                       </div>
                     </td>
                     <td className="px-8 py-5 text-[11px] font-bold text-slate-600 dark:text-slate-400">{formatQty(sale.quantity)} Unit</td>
@@ -325,6 +337,7 @@ const Sales: React.FC = () => {
                               quantity: sale.quantity.toString(),
                               price: sale.salePrice.toString(),
                               totalPrice: sale.totalRevenue.toString(),
+                              paymentMethod: 'CASH', 
                               manualDate: new Date(sale.createdAt).toISOString().split('T')[0]
                             });
                             setShowEditSaleModal(sale);
@@ -438,6 +451,7 @@ const Sales: React.FC = () => {
                                       quantity: order.quantity.toString(),
                                       totalAmount: order.totalAmount.toString(),
                                       dpAmount: order.dpAmount.toString(),
+                                      paymentMethod: 'CASH',
                                       manualDate: new Date(order.createdAt).toISOString().split('T')[0]
                                     });
                                     setShowEditDPModal(order);
@@ -447,7 +461,7 @@ const Sales: React.FC = () => {
                                   <Edit3 size={16} />
                                 </button>
                                 <button 
-                                  onClick={() => completeDPOrder(order.id)}
+                                  onClick={() => setShowCompleteDPModal(order)}
                                   className="bg-emerald-600 hover:bg-emerald-700 text-white p-2 rounded-lg shadow-md transition-all active:scale-95 disabled:opacity-30 disabled:grayscale"
                                   title="Pelunasan & Keluar Stok"
                                   disabled={!isStockReady}
@@ -523,6 +537,16 @@ const Sales: React.FC = () => {
                 )}
               </div>
 
+              {!showEditSaleModal && (
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Terima Pembayaran Ke</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button type="button" onClick={() => handleSaleFormChange('paymentMethod', 'CASH')} className={`py-2 rounded-xl border-2 transition-all font-black text-[9px] flex items-center justify-center gap-1.5 uppercase ${saleForm.paymentMethod === 'CASH' ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700' : 'border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-slate-400'}`}><Wallet size={12} /> Tunai</button>
+                    <button type="button" onClick={() => handleSaleFormChange('paymentMethod', 'BANK')} className={`py-2 rounded-xl border-2 transition-all font-black text-[9px] flex items-center justify-center gap-1.5 uppercase ${saleForm.paymentMethod === 'BANK' ? 'border-blue-500 bg-blue-50 dark:bg-blue-500/10 text-blue-700' : 'border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-slate-400'}`}><BankIcon size={12} /> Bank</button>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Jumlah</label>
@@ -556,6 +580,36 @@ const Sales: React.FC = () => {
         </div>
       )}
 
+      {/* Pelunasan DP Akun Modal */}
+      {showCompleteDPModal && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[120] flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-[2rem] shadow-2xl overflow-hidden animate-in zoom-in duration-200">
+            <div className="px-6 py-4 border-b dark:border-slate-800 bg-emerald-50/50 dark:bg-emerald-500/5">
+              <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Pilih Akun Pelunasan</h3>
+            </div>
+            <form onSubmit={handleCompleteDPSubmit} className="p-6 space-y-4">
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider text-center">
+                Sisa tagihan sebesar <span className="text-emerald-600 font-black">{formatIDR(showCompleteDPModal.totalAmount - showCompleteDPModal.dpAmount)}</span> dibayarkan melalui akun mana?
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <button type="button" onClick={() => setCompleteDPAccount('CASH')} className={`py-3 rounded-xl border-2 transition-all font-black text-[9px] flex flex-col items-center gap-2 uppercase ${completeDPAccount === 'CASH' ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700' : 'border-slate-100 dark:border-slate-800 text-slate-400'}`}>
+                  <Wallet size={20} />
+                  Tunai
+                </button>
+                <button type="button" onClick={() => setCompleteDPAccount('BANK')} className={`py-3 rounded-xl border-2 transition-all font-black text-[9px] flex flex-col items-center gap-2 uppercase ${completeDPAccount === 'BANK' ? 'border-blue-500 bg-blue-50 dark:bg-blue-500/10 text-blue-700' : 'border-slate-100 dark:border-slate-800 text-slate-400'}`}>
+                  <BankIcon size={20} />
+                  Bank
+                </button>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button type="button" onClick={() => setShowCompleteDPModal(null)} className="flex-1 py-3 text-slate-400 font-black uppercase text-[9px]">Batal</button>
+                <button type="submit" className="flex-[2] py-3 bg-emerald-600 text-white font-black rounded-xl shadow-lg uppercase text-[9px] transition-all">Konfirmasi Lunas</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* PO Modal */}
       {(showDPModal || showEditDPModal) && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[100] flex items-center justify-center p-4">
@@ -578,6 +632,16 @@ const Sales: React.FC = () => {
                 <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Barang Yang Dipesan</label>
                 <input required type="text" className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-black text-slate-900 dark:text-white uppercase" value={dpForm.productName} onChange={(e) => handleDPFormChange('productName', e.target.value.toUpperCase())} />
               </div>
+
+              {!showEditDPModal && (
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Simpan DP Ke Akun</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button type="button" onClick={() => handleDPFormChange('paymentMethod', 'CASH')} className={`py-2 rounded-xl border-2 transition-all font-black text-[9px] flex items-center justify-center gap-1.5 uppercase ${dpForm.paymentMethod === 'CASH' ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700' : 'border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-slate-400'}`}><Wallet size={12} /> Tunai</button>
+                    <button type="button" onClick={() => handleDPFormChange('paymentMethod', 'BANK')} className={`py-2 rounded-xl border-2 transition-all font-black text-[9px] flex items-center justify-center gap-1.5 uppercase ${dpForm.paymentMethod === 'BANK' ? 'border-blue-500 bg-blue-50 dark:bg-blue-500/10 text-blue-700' : 'border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-slate-400'}`}><BankIcon size={12} /> Bank</button>
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">

@@ -1,11 +1,11 @@
 
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../store';
-import { Wallet, Search, ArrowUpCircle, ArrowDownCircle, Plus, Filter, Trash2, Coins, Package, XCircle, ChevronRight, Edit3, Calendar, HandCoins, Landmark, AlertCircle, Info, History, TrendingUp, Scale, Lock, Landmark as BankIcon } from 'lucide-react';
+import { Wallet, Search, ArrowUpCircle, ArrowDownCircle, Plus, Filter, Trash2, Coins, Package, XCircle, ChevronRight, Edit3, Calendar, HandCoins, Landmark, AlertCircle, Info, History, TrendingUp, Scale, Lock, Landmark as BankIcon, ArrowRightLeft } from 'lucide-react';
 import { TransactionType, TransactionCategory, Transaction, Loan } from '../types';
 
 const Transactions: React.FC = () => {
-  const { state, addManualTransaction, updateTransaction, deleteTransaction, addLoan, updateLoan, repayLoan, deleteLoan } = useApp();
+  const { state, addManualTransaction, updateTransaction, deleteTransaction, transferFunds, addLoan, updateLoan, repayLoan, deleteLoan } = useApp();
   const [activeTab, setActiveTab] = useState<'HISTORY' | 'LOANS'>('HISTORY');
   const [filter, setFilter] = useState<TransactionType | 'ALL'>('ALL');
   const [accountFilter, setAccountFilter] = useState<'ALL' | 'CASH' | 'BANK'>('ALL');
@@ -14,6 +14,7 @@ const Transactions: React.FC = () => {
   const [endDateStr, setEndDateStr] = useState('');
   
   const [showManualModal, setShowManualModal] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState<Transaction | null>(null);
   const [showLoanModal, setShowLoanModal] = useState(false);
   const [showEditLoanModal, setShowEditLoanModal] = useState<Loan | null>(null);
@@ -26,6 +27,15 @@ const Transactions: React.FC = () => {
     amount: '' as string | number,
     description: '',
     paymentMethod: 'CASH' as 'CASH' | 'BANK',
+    manualDate: new Date().toISOString().split('T')[0]
+  });
+
+  // Transfer Form
+  const [transferForm, setTransferForm] = useState({
+    amount: '' as string | number,
+    from: 'CASH' as 'CASH' | 'BANK',
+    to: 'BANK' as 'CASH' | 'BANK',
+    note: '',
     manualDate: new Date().toISOString().split('T')[0]
   });
 
@@ -90,6 +100,7 @@ const Transactions: React.FC = () => {
       case TransactionCategory.FORFEITED_DP: return "ORDER DP";
       case TransactionCategory.LOAN_PROCEEDS:
       case TransactionCategory.LOAN_REPAYMENT: return "PINJAMAN";
+      case TransactionCategory.TRANSFER: return "TRANSFER";
       default: 
         if (t.description.includes("BUNGA PINJAMAN")) return "PINJAMAN";
         return "MODUL";
@@ -147,6 +158,19 @@ const Transactions: React.FC = () => {
       }, customTimestamp);
       setShowManualModal(false);
       setManualForm({ type: TransactionType.CASH_OUT, category: '', amount: '', description: '', paymentMethod: 'CASH', manualDate: new Date().toISOString().split('T')[0] });
+    }
+  };
+
+  const handleTransferSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const amount = Number(transferForm.amount);
+    if (amount > 0 && transferForm.from !== transferForm.to) {
+      const parsedDate = parseManualDate(transferForm.manualDate);
+      transferFunds(amount, transferForm.from, transferForm.to, transferForm.note, parsedDate || undefined);
+      setShowTransferModal(false);
+      setTransferForm({ amount: '', from: 'CASH', to: 'BANK', note: '', manualDate: new Date().toISOString().split('T')[0] });
+    } else {
+      alert("Akun sumber dan tujuan tidak boleh sama.");
     }
   };
 
@@ -245,17 +269,24 @@ const Transactions: React.FC = () => {
             </div>
           </div>
           
-          <div className="flex gap-2.5 w-full lg:w-auto">
+          <div className="flex flex-wrap gap-2.5 w-full lg:w-auto">
             <button 
               onClick={() => setShowManualModal(true)}
-              className="flex-1 lg:flex-none bg-slate-800 hover:bg-slate-700 text-white px-6 py-3.5 rounded-xl lg:rounded-2xl font-black flex items-center justify-center gap-2 transition-all active:scale-95 text-[10px] uppercase tracking-widest border border-slate-700"
+              className="flex-1 lg:flex-none bg-slate-800 hover:bg-slate-700 text-white px-5 py-3.5 rounded-xl lg:rounded-2xl font-black flex items-center justify-center gap-2 transition-all active:scale-95 text-[10px] uppercase tracking-widest border border-slate-700"
             >
               <Plus size={16} strokeWidth={3} />
               <span>Kas Manual</span>
             </button>
             <button 
+              onClick={() => setShowTransferModal(true)}
+              className="flex-1 lg:flex-none bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3.5 rounded-xl lg:rounded-2xl font-black flex items-center justify-center gap-2 shadow-xl shadow-emerald-500/20 transition-all active:scale-95 text-[10px] uppercase tracking-widest"
+            >
+              <ArrowRightLeft size={16} strokeWidth={3} />
+              <span>Pindah Dana</span>
+            </button>
+            <button 
               onClick={() => setShowLoanModal(true)}
-              className="flex-1 lg:flex-none bg-blue-600 hover:bg-blue-700 text-white px-6 py-3.5 rounded-xl lg:rounded-2xl font-black flex items-center justify-center gap-2 shadow-xl shadow-blue-500/20 transition-all active:scale-95 text-[10px] uppercase tracking-widest"
+              className="flex-1 lg:flex-none bg-blue-600 hover:bg-blue-700 text-white px-5 py-3.5 rounded-xl lg:rounded-2xl font-black flex items-center justify-center gap-2 shadow-xl shadow-blue-500/20 transition-all active:scale-95 text-[10px] uppercase tracking-widest"
             >
               <HandCoins size={16} strokeWidth={3} />
               <span>Pinjaman</span>
@@ -444,6 +475,7 @@ const Transactions: React.FC = () => {
                             t.category === TransactionCategory.SALES ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
                             t.category === TransactionCategory.LOAN_PROCEEDS ? 'bg-blue-50 text-blue-600 border-blue-100' :
                             t.category === TransactionCategory.LOAN_REPAYMENT ? 'bg-orange-50 text-orange-600 border-orange-100' :
+                            t.category === TransactionCategory.TRANSFER ? 'bg-slate-900 text-white border-slate-700' :
                             'bg-slate-100 text-slate-500 border-slate-200'
                           }`}>
                             {t.category.replace('_', ' ')}
@@ -616,6 +648,60 @@ const Transactions: React.FC = () => {
               <div className="flex gap-2 pt-2">
                 <button type="button" onClick={() => setShowManualModal(false)} className="flex-1 py-3 text-slate-400 font-black uppercase text-[9px]">Batal</button>
                 <button type="submit" className="flex-[2] py-3 bg-slate-900 dark:bg-blue-600 text-white font-black rounded-xl uppercase text-[9px] shadow-lg transition-all active:scale-95">Simpan Data</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Fund Transfer Modal */}
+      {showTransferModal && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-[2rem] shadow-2xl overflow-hidden animate-in zoom-in duration-200 text-slate-900 dark:text-white">
+            <div className="px-6 py-4 border-b dark:border-slate-800 flex items-center justify-between bg-emerald-50/50 dark:bg-emerald-500/5">
+              <h3 className="text-base font-black uppercase tracking-tight">Pindah Dana / Transfer</h3>
+              <button onClick={() => setShowTransferModal(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-all"><Plus className="rotate-45" size={20} /></button>
+            </div>
+            <form onSubmit={handleTransferSubmit} className="p-6 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[8px] font-black text-slate-500 uppercase">Dari Akun</label>
+                  <select 
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-xl text-[10px] font-black uppercase transition-all"
+                    value={transferForm.from}
+                    onChange={(e) => setTransferForm({...transferForm, from: e.target.value as any, to: e.target.value === 'CASH' ? 'BANK' : 'CASH'})}
+                  >
+                    <option value="CASH">TUNAI (CASH)</option>
+                    <option value="BANK">BANK (TRANSFER)</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[8px] font-black text-slate-500 uppercase">Ke Akun</label>
+                  <select 
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-xl text-[10px] font-black uppercase transition-all"
+                    value={transferForm.to}
+                    onChange={(e) => setTransferForm({...transferForm, to: e.target.value as any, from: e.target.value === 'CASH' ? 'BANK' : 'CASH'})}
+                  >
+                    <option value="CASH">TUNAI (CASH)</option>
+                    <option value="BANK">BANK (TRANSFER)</option>
+                  </select>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[8px] font-black text-slate-500 uppercase">Nominal Transfer</label>
+                <input required type="text" inputMode="decimal" placeholder="0" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-xl text-lg font-black transition-all" value={transferForm.amount} onChange={(e) => setTransferForm({...transferForm, amount: sanitizeNumeric(e.target.value)})} />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[8px] font-black text-slate-500 uppercase">Catatan Transfer</label>
+                <input type="text" placeholder="MISAL: SETOR TUNAI KE BANK" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-xl text-[10px] font-black uppercase transition-all" value={transferForm.note} onChange={(e) => setTransferForm({...transferForm, note: e.target.value.toUpperCase()})} />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[8px] font-black text-slate-500 uppercase">Tanggal</label>
+                <input type="date" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-xl text-[10px] font-black transition-all" value={transferForm.manualDate} onChange={(e) => setTransferForm({...transferForm, manualDate: e.target.value})} />
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button type="button" onClick={() => setShowTransferModal(false)} className="flex-1 py-3 text-slate-400 font-black uppercase text-[9px]">Batal</button>
+                <button type="submit" className="flex-[2] py-3 bg-emerald-600 text-white font-black rounded-xl uppercase text-[9px] shadow-lg transition-all active:scale-95">Proses Transfer</button>
               </div>
             </form>
           </div>

@@ -4,7 +4,7 @@ import { useApp } from '../store';
 import { 
   Plus, Trash2, Search, Filter, Layers, PackageCheck, 
   Boxes, Calculator, ArrowUpRight, ArrowDownLeft, History,
-  Eye, EyeOff, Calendar, Tag, CircleDollarSign, Edit3, AlertTriangle
+  Eye, EyeOff, Calendar, Tag, CircleDollarSign, Edit3, AlertTriangle, Wallet, Landmark as BankIcon
 } from 'lucide-react';
 import { StockType, Batch, BatchVariant } from '../types';
 
@@ -23,6 +23,7 @@ const Inventory: React.FC = () => {
     buyPrice: '' as string | number,
     totalPrice: '' as string | number,
     stockType: StockType.FOR_PRODUCTION,
+    paymentMethod: 'CASH' as 'CASH' | 'BANK',
     manualDate: ''
   });
 
@@ -116,10 +117,10 @@ const Inventory: React.FC = () => {
         buyPrice: price,
         stockType: formData.stockType,
         currentQuantity: qty
-      }, customTimestamp);
+      }, customTimestamp, formData.paymentMethod);
       
       setShowModal(false);
-      setFormData({ productName: '', initialQuantity: '', buyPrice: '', totalPrice: '', stockType: StockType.FOR_PRODUCTION, manualDate: '' });
+      setFormData({ productName: '', initialQuantity: '', buyPrice: '', totalPrice: '', stockType: StockType.FOR_PRODUCTION, paymentMethod: 'CASH', manualDate: '' });
     }
   };
 
@@ -436,6 +437,14 @@ const Inventory: React.FC = () => {
               <div className="space-y-1">
                 <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">Nama Barang</label>
                 <input required type="text" placeholder="MISAL: TEPUNG TERIGU" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase text-slate-900 dark:text-white font-black text-[10px] transition-all" value={formData.productName} onChange={(e) => setFormData({...formData, productName: e.target.value.toUpperCase()})} />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">Sumber Dana (Potong Kas)</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => setFormData({...formData, paymentMethod: 'CASH'})} className={`py-2 rounded-lg border-2 transition-all font-black text-[9px] flex items-center justify-center gap-1.5 uppercase ${formData.paymentMethod === 'CASH' ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700' : 'border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-slate-400'}`}><Wallet size={12} /> Tunai / Cash</button>
+                  <button type="button" onClick={() => setFormData({...formData, paymentMethod: 'BANK'})} className={`py-2 rounded-lg border-2 transition-all font-black text-[9px] flex items-center justify-center gap-1.5 uppercase ${formData.paymentMethod === 'BANK' ? 'border-blue-500 bg-blue-50 dark:bg-blue-500/10 text-blue-700' : 'border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-slate-400'}`}><BankIcon size={12} /> Bank / Transfer</button>
+                </div>
               </div>
               
               <div className="grid grid-cols-2 gap-3">

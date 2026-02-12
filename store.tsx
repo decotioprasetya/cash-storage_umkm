@@ -9,32 +9,32 @@ import {
 
 interface AppContextType {
   state: AppState;
-  addBatch: (data: Omit<Batch, 'id' | 'createdAt'>, customDate?: number) => Promise<void>;
+  addBatch: (data: Omit<Batch, 'id' | 'createdAt'>, customDate?: number, paymentMethod?: 'CASH' | 'BANK') => Promise<void>;
   updateBatch: (id: string, data: Partial<Batch>) => Promise<void>;
   deleteBatch: (id: string) => Promise<void>;
   runProduction: (
     productName: string, 
     quantity: number, 
     ingredients: { productName: string, quantity: number }[],
-    operationalCosts: { amount: number, description: string }[],
+    operationalCosts: { amount: number, description: string, paymentMethod: 'CASH' | 'BANK' }[],
     customDate?: number
   ) => Promise<void>;
   updateProduction: (id: string, data: Partial<ProductionRecord>) => Promise<void>;
   completeProduction: (id: string, actualQuantity: number, variants?: BatchVariant[]) => Promise<void>;
   deleteProduction: (id: string) => Promise<void>;
-  runSale: (productName: string, quantity: number, pricePerUnit: number, customDate?: number, variantLabel?: string) => Promise<void>;
+  runSale: (productName: string, quantity: number, pricePerUnit: number, customDate?: number, variantLabel?: string, paymentMethod?: 'CASH' | 'BANK') => Promise<void>;
   updateSale: (id: string, data: Partial<SaleRecord>) => Promise<void>;
   deleteSale: (id: string) => Promise<void>;
-  addDPOrder: (data: Omit<DPOrder, 'id' | 'createdAt' | 'status'>, customDate?: number) => Promise<void>;
+  addDPOrder: (data: Omit<DPOrder, 'id' | 'createdAt' | 'status'>, customDate?: number, paymentMethod?: 'CASH' | 'BANK') => Promise<void>;
   updateDPOrder: (id: string, data: Partial<DPOrder>) => Promise<void>;
-  completeDPOrder: (id: string, customDate?: number) => Promise<void>;
+  completeDPOrder: (id: string, customDate?: number, paymentMethod?: 'CASH' | 'BANK') => Promise<void>;
   cancelDPOrder: (id: string, customDate?: number) => Promise<void>;
   deleteDPOrder: (id: string) => Promise<void>;
   addManualTransaction: (data: Omit<Transaction, 'id' | 'createdAt'>, customDate?: number) => Promise<void>;
   updateTransaction: (id: string, data: Partial<Transaction>) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
-  addLoan: (data: Omit<Loan, 'id' | 'createdAt' | 'remainingAmount'>, customDate?: number) => Promise<void>;
-  repayLoan: (loanId: string, principal: number, interest: number, customDate?: number) => Promise<void>;
+  addLoan: (data: Omit<Loan, 'id' | 'createdAt' | 'remainingAmount'>, customDate?: number, paymentMethod?: 'CASH' | 'BANK') => Promise<void>;
+  repayLoan: (loanId: string, principal: number, interest: number, customDate?: number, paymentMethod?: 'CASH' | 'BANK') => Promise<void>;
   deleteLoan: (id: string) => Promise<void>;
   updateSettings: (settings: Partial<AppSettings>) => void;
   syncLocalToCloud: () => Promise<void>;
@@ -132,13 +132,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const addBatch = async (data: Omit<Batch, 'id' | 'createdAt'>, customDate?: number) => {
+  const addBatch = async (data: Omit<Batch, 'id' | 'createdAt'>, customDate?: number, paymentMethod: 'CASH' | 'BANK' = 'CASH') => {
     const timestamp = customDate || Date.now();
     const newBatch: Batch = { ...data, id: crypto.randomUUID(), createdAt: timestamp };
     const newTransaction: Transaction = {
       id: crypto.randomUUID(), type: TransactionType.CASH_OUT, category: TransactionCategory.STOCK_PURCHASE,
       amount: data.buyPrice * data.initialQuantity, description: `Beli Stok: ${data.productName}`,
-      createdAt: timestamp, relatedId: newBatch.id
+      createdAt: timestamp, relatedId: newBatch.id, paymentMethod
     };
     if (isCloudReady && state.user && state.settings.useCloud) {
       await Promise.all([
@@ -201,7 +201,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setState(prev => ({ ...prev, batches: prev.batches.filter(b => b.id !== id), transactions: prev.transactions.filter(t => t.relatedId !== id) }));
   };
 
-  const runProduction = async (productName: string, quantity: number, ingredients: { productName: string, quantity: number }[], operationalCosts: { amount: number, description: string }[], customDate?: number) => {
+  const runProduction = async (productName: string, quantity: number, ingredients: { productName: string, quantity: number }[], operationalCosts: { amount: number, description: string, paymentMethod: 'CASH' | 'BANK' }[], customDate?: number) => {
     const timestamp = customDate || Date.now();
     const productionId = crypto.randomUUID();
     let totalMaterialCost = 0;
@@ -236,7 +236,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     
     const newTx = operationalCosts.filter(c => c.amount > 0).map(c => ({
       id: crypto.randomUUID(), type: TransactionType.CASH_OUT, category: TransactionCategory.PRODUCTION_COST,
-      amount: c.amount, description: `PRODUKSI ${productName} (${c.description})`, createdAt: timestamp, relatedId: productionId
+      amount: c.amount, description: `PRODUKSI ${productName} (${c.description})`, createdAt: timestamp, relatedId: productionId, paymentMethod: c.paymentMethod
     }));
 
     if (isCloudReady && state.user && state.settings.useCloud) {
@@ -348,7 +348,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }));
   };
 
-  const runSale = async (productName: string, quantity: number, pricePerUnit: number, customDate?: number, variantLabel?: string) => {
+  const runSale = async (productName: string, quantity: number, pricePerUnit: number, customDate?: number, variantLabel?: string, paymentMethod: 'CASH' | 'BANK' = 'CASH') => {
     const timestamp = customDate || Date.now();
     let needed = quantity;
     let totalCOGS = 0;
@@ -387,7 +387,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const tx: Transaction = { 
       id: crypto.randomUUID(), type: TransactionType.CASH_IN, category: TransactionCategory.SALES, 
       amount: sale.totalRevenue, description: `PENJUALAN: ${productName}${variantLabel ? ` (${variantLabel})` : ''}`, 
-      createdAt: timestamp, relatedId: saleId 
+      createdAt: timestamp, relatedId: saleId, paymentMethod
     };
 
     if (isCloudReady && state.user && state.settings.useCloud) {
@@ -578,13 +578,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setState(prev => ({ ...prev, batches: updatedBatches, sales: prev.sales.filter(s => s.id !== id), dpOrders: updatedOrders, transactions: updatedTransactions }));
   };
 
-  const addDPOrder = async (data: Omit<DPOrder, 'id' | 'createdAt' | 'status'>, customDate?: number) => {
+  const addDPOrder = async (data: Omit<DPOrder, 'id' | 'createdAt' | 'status'>, customDate?: number, paymentMethod: 'CASH' | 'BANK' = 'CASH') => {
     const timestamp = customDate || Date.now();
     const newOrder: DPOrder = { ...data, id: crypto.randomUUID(), createdAt: timestamp, status: DPStatus.PENDING };
     const tx: Transaction = { 
       id: crypto.randomUUID(), type: TransactionType.CASH_IN, category: TransactionCategory.DEPOSIT, 
       amount: data.dpAmount, description: `DP ORDER: ${data.customerName} (${data.productName})`, 
-      createdAt: timestamp, relatedId: newOrder.id 
+      createdAt: timestamp, relatedId: newOrder.id, paymentMethod
     };
     if (isCloudReady && state.user && state.settings.useCloud) {
       await Promise.all([
@@ -616,13 +616,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setState(prev => ({ ...prev, dpOrders: updatedOrders, transactions: updatedTransactions }));
   };
 
-  const completeDPOrder = async (id: string, customDate?: number) => {
+  const completeDPOrder = async (id: string, customDate?: number, paymentMethod: 'CASH' | 'BANK' = 'CASH') => {
     const order = state.dpOrders.find(o => o.id === id);
     if (!order || order.status !== DPStatus.PENDING) return;
     const timestamp = customDate || Date.now();
     const remainingBalance = order.totalAmount - order.dpAmount;
     let updatedTransactions = state.transactions.map(t => t.relatedId === order.id && t.category === TransactionCategory.DEPOSIT ? { ...t, category: TransactionCategory.SALES, description: `PELUNASAN DP: ${order.customerName} (${order.productName})` } : t);
-    const pelunasanTx: Transaction = { id: crypto.randomUUID(), type: TransactionType.CASH_IN, category: TransactionCategory.SALES, amount: remainingBalance, description: `PELUNASAN SISA ORDER: ${order.customerName} (${order.productName})`, createdAt: timestamp, relatedId: order.id };
+    const pelunasanTx: Transaction = { id: crypto.randomUUID(), type: TransactionType.CASH_IN, category: TransactionCategory.SALES, amount: remainingBalance, description: `PELUNASAN SISA ORDER: ${order.customerName} (${order.productName})`, createdAt: timestamp, relatedId: order.id, paymentMethod };
     updatedTransactions.push(pelunasanTx);
     let needed = order.quantity;
     let totalCOGS = 0;
@@ -710,10 +710,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setState(prev => ({ ...prev, transactions: prev.transactions.filter(t => t.id !== id) }));
   };
 
-  const addLoan = async (data: Omit<Loan, 'id' | 'createdAt' | 'remainingAmount'>, customDate?: number) => {
+  const addLoan = async (data: Omit<Loan, 'id' | 'createdAt' | 'remainingAmount'>, customDate?: number, paymentMethod: 'CASH' | 'BANK' = 'CASH') => {
     const timestamp = customDate || Date.now();
     const newLoan: Loan = { ...data, id: crypto.randomUUID(), remainingAmount: data.initialAmount, createdAt: timestamp };
-    const tx: Transaction = { id: crypto.randomUUID(), type: TransactionType.CASH_IN, category: TransactionCategory.LOAN_PROCEEDS, amount: data.initialAmount, description: `PENCAIRAN PINJAMAN: ${data.source}`, createdAt: timestamp, relatedId: newLoan.id };
+    const tx: Transaction = { id: crypto.randomUUID(), type: TransactionType.CASH_IN, category: TransactionCategory.LOAN_PROCEEDS, amount: data.initialAmount, description: `PENCAIRAN PINJAMAN: ${data.source}`, createdAt: timestamp, relatedId: newLoan.id, paymentMethod };
     if (isCloudReady && state.user && state.settings.useCloud) {
       await Promise.all([
         supabase.from('loans').insert({...newLoan, user_id: state.user.id}),
@@ -723,13 +723,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setState(prev => ({ ...prev, loans: [...prev.loans, newLoan], transactions: [...prev.transactions, tx] }));
   };
 
-  const repayLoan = async (loanId: string, principal: number, interest: number, customDate?: number) => {
+  const repayLoan = async (loanId: string, principal: number, interest: number, customDate?: number, paymentMethod: 'CASH' | 'BANK' = 'CASH') => {
     const loan = state.loans.find(l => l.id === loanId);
     if (!loan) return;
     const timestamp = customDate || Date.now();
     const newTransactions: Transaction[] = [];
-    if (principal > 0) newTransactions.push({ id: crypto.randomUUID(), type: TransactionType.CASH_OUT, category: TransactionCategory.LOAN_REPAYMENT, amount: principal, description: `PELUNASAN POKOK: ${loan.source}`, createdAt: timestamp, relatedId: loan.id });
-    if (interest > 0) newTransactions.push({ id: crypto.randomUUID(), type: TransactionType.CASH_OUT, category: TransactionCategory.OPERATIONAL, amount: interest, description: `BUNGA PINJAMAN: ${loan.source}`, createdAt: timestamp, relatedId: loan.id });
+    if (principal > 0) newTransactions.push({ id: crypto.randomUUID(), type: TransactionType.CASH_OUT, category: TransactionCategory.LOAN_REPAYMENT, amount: principal, description: `PELUNASAN POKOK: ${loan.source}`, createdAt: timestamp, relatedId: loan.id, paymentMethod });
+    if (interest > 0) newTransactions.push({ id: crypto.randomUUID(), type: TransactionType.CASH_OUT, category: TransactionCategory.OPERATIONAL, amount: interest, description: `BUNGA PINJAMAN: ${loan.source}`, createdAt: timestamp, relatedId: loan.id, paymentMethod });
     const updatedLoans = state.loans.map(l => l.id === loanId ? { ...l, remainingAmount: Math.max(0, l.remainingAmount - principal) } : l);
     if (isCloudReady && state.user && state.settings.useCloud) {
       await Promise.all([

@@ -91,7 +91,9 @@ const Production: React.FC = () => {
     const validIngredients = ingredients.map(i => ({ ...i, quantity: Number(i.quantity) }));
     const validCosts = opCosts.map(c => ({ ...c, amount: Number(c.amount) }));
 
-    if (outputName && qty >= 0 && validIngredients.every(i => i.productName && i.quantity > 0)) {
+    // Diubah: validIngredients.every(i => i.productName && i.quantity >= 0)
+    // Sebelumnya adalah i.quantity > 0 yang mencegah angka nol.
+    if (outputName && qty >= 0 && validIngredients.every(i => i.productName && i.quantity >= 0)) {
       const customTimestamp = manualDate ? new Date(manualDate).getTime() : undefined;
       runProduction(outputName, qty, validIngredients, validCosts, customTimestamp);
       setShowModal(false);

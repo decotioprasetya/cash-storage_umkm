@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../store';
-import { Factory, Trash2, Plus, Info, Wallet, Calendar, Clock, CheckCircle2, Play, ChevronRight, Edit3, Landmark as BankIcon } from 'lucide-react';
-import { StockType, TransactionCategory, ProductionStatus, ProductionRecord, BatchVariant } from '../types';
+import { Factory, Trash2, Plus, Info, Wallet, Calendar, Clock, CheckCircle2, Play, ChevronRight, Edit3, Landmark as BankIcon, AlertCircle } from 'lucide-react';
+import { StockType, TransactionCategory, ProductionStatus, ProductionRecord, BatchVariant, ProductionIngredient } from '../types';
 
 const Production: React.FC = () => {
   const { state, runProduction, updateProduction, completeProduction, deleteProduction } = useApp();
@@ -24,6 +24,7 @@ const Production: React.FC = () => {
 
   // Form Complete Production
   const [actualQty, setActualQty] = useState('' as string | number);
+  const [completeIngredients, setCompleteIngredients] = useState<ProductionIngredient[]>([]);
   const [completeVariants, setCompleteVariants] = useState<BatchVariant[]>([]);
 
   const sanitizeNumeric = (val: string) => {
@@ -91,9 +92,7 @@ const Production: React.FC = () => {
     const validIngredients = ingredients.map(i => ({ ...i, quantity: Number(i.quantity) }));
     const validCosts = opCosts.map(c => ({ ...c, amount: Number(c.amount) }));
 
-    // Diubah: validIngredients.every(i => i.productName && i.quantity >= 0)
-    // Sebelumnya adalah i.quantity > 0 yang mencegah angka nol.
-    if (outputName && qty >= 0 && validIngredients.every(i => i.productName && i.quantity >= 0)) {
+    if (outputName && qty >= 0 && validIngredients.every(i => i.productName && Number(i.quantity) >= 0)) {
       const customTimestamp = manualDate ? new Date(manualDate).getTime() : undefined;
       runProduction(outputName, qty, validIngredients, validCosts, customTimestamp);
       setShowModal(false);
@@ -112,7 +111,7 @@ const Production: React.FC = () => {
     }
   };
 
-  const handleCompleteSubmit = (e: React.FormEvent) => {
+  const handleCompleteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!showCompleteModal) return;
     
@@ -122,14 +121,24 @@ const Production: React.FC = () => {
       return;
     }
 
+    // Pastikan semua bahan yang diinput riil valid
+    if (completeIngredients.some(i => i.quantity <= 0)) {
+      alert("SEMUA BAHAN BAKU TERPAKAI HARUS DIISI DENGAN ANGKA DI ATAS NOL!");
+      return;
+    }
+
     const variantTotal = completeVariants.reduce((sum, v) => sum + v.quantity, 0);
     if (completeVariants.length > 0 && variantTotal !== qty) {
       alert(`TOTAL KUANTITAS VARIAN (${variantTotal}) HARUS SAMA DENGAN HASIL AKTUAL (${qty})!`);
       return;
     }
 
-    completeProduction(showCompleteModal.id, qty, completeVariants.length > 0 ? completeVariants : undefined);
-    setShowCompleteModal(null);
+    try {
+      await completeProduction(showCompleteModal.id, qty, completeIngredients, completeVariants.length > 0 ? completeVariants : undefined);
+      setShowCompleteModal(null);
+    } catch (err: any) {
+      alert("GAGAL MENYELESAIKAN PRODUKSI: " + err.message);
+    }
   };
 
   const resetForm = () => {
@@ -164,6 +173,12 @@ const Production: React.FC = () => {
 
   const removeCompleteVariant = (idx: number) => {
     setCompleteVariants(completeVariants.filter((_, i) => i !== idx));
+  };
+
+  const updateCompleteIngredient = (idx: number, val: string) => {
+    const updated = [...completeIngredients];
+    updated[idx].quantity = Number(sanitizeNumeric(val));
+    setCompleteIngredients(updated);
   };
 
   const renderProductionCard = (prod: ProductionRecord) => {
@@ -215,6 +230,7 @@ const Production: React.FC = () => {
                     onClick={() => {
                       setActualQty(prod.outputQuantity.toString());
                       setCompleteVariants([]);
+                      setCompleteIngredients(prod.ingredients?.map(i => ({ ...i })) || []);
                       setShowCompleteModal(prod);
                     }}
                     className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-emerald-500/20 transition-all active:scale-95"
@@ -238,25 +254,41 @@ const Production: React.FC = () => {
         <div className="p-8 grid grid-cols-1 lg:grid-cols-2 gap-8 text-white">
           <div>
             <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <Plus size={12} className="text-blue-500" /> Bahan Baku Terpakai
+              <Plus size={12} className="text-blue-500" /> {isOngoing ? 'Rencana Bahan Baku' : 'Bahan Baku Terpakai'}
             </h4>
             <div className="space-y-3">
-              {state.productionUsages
-                .filter(u => u.productionId === prod.id)
-                .map((usage) => {
-                  const batch = state.batches.find(b => b.id === usage.batchId);
-                  return (
-                    <div key={usage.id} className="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl text-white">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-white dark:bg-slate-700 rounded-lg flex items-center justify-center text-blue-600 dark:text-blue-400 border border-slate-100 dark:border-slate-600">
-                          <Factory size={14} />
-                        </div>
-                        <p className="text-[10px] font-black text-slate-900 dark:text-slate-100 uppercase">{batch?.productName || '???'}</p>
+              {isOngoing ? (
+                // Tampilkan rencana jika sedang proses
+                prod.ingredients?.map((ing, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl text-white">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-white dark:bg-slate-700 rounded-lg flex items-center justify-center text-blue-600 dark:text-blue-400 border border-slate-100 dark:border-slate-600">
+                        <Factory size={14} />
                       </div>
-                      <p className="text-[10px] font-black text-slate-500 dark:text-slate-400">{formatQty(usage.quantityUsed)} UNIT <span className="mx-1 opacity-20">|</span> {formatIDR(usage.costPerUnit)}</p>
+                      <p className="text-[10px] font-black text-slate-900 dark:text-slate-100 uppercase">{ing.productName}</p>
                     </div>
-                  );
-                })}
+                    <p className="text-[10px] font-black text-slate-500 dark:text-slate-400">{formatQty(ing.quantity)} UNIT <span className="mx-1 opacity-20">|</span> ESTIMASI</p>
+                  </div>
+                ))
+              ) : (
+                // Tampilkan realisasi penggunaan jika sudah selesai
+                state.productionUsages
+                  .filter(u => u.productionId === prod.id)
+                  .map((usage) => {
+                    const batch = state.batches.find(b => b.id === usage.batchId);
+                    return (
+                      <div key={usage.id} className="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl text-white">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-white dark:bg-slate-700 rounded-lg flex items-center justify-center text-blue-600 dark:text-blue-400 border border-slate-100 dark:border-slate-600">
+                            <Factory size={14} />
+                          </div>
+                          <p className="text-[10px] font-black text-slate-900 dark:text-slate-100 uppercase">{batch?.productName || '???'}</p>
+                        </div>
+                        <p className="text-[10px] font-black text-slate-500 dark:text-slate-400">{formatQty(usage.quantityUsed)} UNIT <span className="mx-1 opacity-20">|</span> {formatIDR(usage.costPerUnit)}</p>
+                      </div>
+                    );
+                  })
+              )}
             </div>
           </div>
 
@@ -340,11 +372,11 @@ const Production: React.FC = () => {
       {/* Completion Modal */}
       {showCompleteModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[110] flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in duration-200">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in duration-200">
             <div className="px-8 py-6 border-b dark:border-slate-800 flex items-center justify-between bg-emerald-50/50 dark:bg-emerald-500/5">
               <div>
                 <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Selesaikan Produksi</h3>
-                <p className="text-[9px] font-black text-emerald-600 uppercase mt-1">Input Hasil Riil & Varian Produk Jadi</p>
+                <p className="text-[9px] font-black text-emerald-600 uppercase mt-1">Input Pemakaian Riil & Hasil Akhir</p>
               </div>
               <button onClick={() => setShowCompleteModal(null)} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-xl transition-all">
                 <Plus className="rotate-45 text-slate-400" size={24} />
@@ -355,54 +387,95 @@ const Production: React.FC = () => {
                 <div className="flex items-center gap-3">
                   <Info size={18} className="text-blue-600" />
                   <p className="text-[10px] font-bold text-blue-900 dark:text-blue-300 uppercase leading-relaxed">
-                    Kuantitas target awal adalah <b>{formatQty(showCompleteModal.outputQuantity)} Unit</b>. 
-                    Silahkan masukkan kuantitas yang berhasil diproduksi hari ini.
+                    Konfirmasi jumlah bahan baku yang benar-benar terpakai untuk menghitung HPP yang akurat.
                   </p>
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Kuantitas Hasil Berhasil (Aktual)</label>
-                <input required type="text" inputMode="decimal" placeholder="0" className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900 dark:text-white font-black text-lg transition-all" value={actualQty} onChange={(e) => setActualQty(sanitizeNumeric(e.target.value))} />
-                <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest ml-1">* Barang cacat/gagal tidak perlu dimasukkan, HPP otomatis akan disesuaikan.</p>
-              </div>
-
-              <div className="space-y-4 pt-4 border-t dark:border-slate-800">
-                <div className="flex items-center justify-between">
-                  <label className="text-[9px] font-black text-blue-600 uppercase tracking-widest ml-1">Pecah ke Varian (Opsional)</label>
-                  <button type="button" onClick={addCompleteVariant} className="text-[9px] font-black text-blue-600 bg-blue-50 dark:bg-blue-500/10 px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-blue-100 transition-all uppercase tracking-widest border border-blue-100">
-                    <Plus size={14} strokeWidth={3} /> Tambah Varian
-                  </button>
-                </div>
+              {/* Input Pemakaian Bahan Baku Riil */}
+              <div className="space-y-4">
+                <label className="text-[9px] font-black text-blue-600 uppercase tracking-widest ml-1">Konfirmasi Pemakaian Bahan Baku</label>
                 <div className="space-y-3">
-                  {completeVariants.map((v, idx) => (
-                    <div key={v.id} className="flex gap-3 items-center animate-in slide-in-from-left-2 duration-200">
-                      <div className="flex-[2]">
-                        <input required type="text" placeholder="MISAL: UKURAN L" className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-xl text-[10px] text-slate-900 dark:text-white font-black uppercase transition-all" value={v.label} onChange={(e) => updateCompleteVariant(idx, 'label', e.target.value.toUpperCase())} />
+                  {completeIngredients.map((ing, idx) => (
+                    <div key={idx} className="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-3 flex-1">
+                        <div className="w-10 h-10 bg-white dark:bg-slate-700 rounded-xl flex items-center justify-center text-blue-600 dark:text-blue-400 border border-slate-100 dark:border-slate-600">
+                          <Factory size={18} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-black text-slate-900 dark:text-slate-100 uppercase truncate">{ing.productName}</p>
+                          <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">Tersedia: {formatQty(availableMaterialsInfo[ing.productName] || 0)}</p>
+                        </div>
                       </div>
-                      <div className="flex-1">
-                        <input required type="text" inputMode="decimal" placeholder="0" className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-xl text-[10px] text-slate-900 dark:text-white font-black transition-all" value={v.quantity} onChange={(e) => updateCompleteVariant(idx, 'quantity', e.target.value)} />
+                      <div className="w-32">
+                        <input 
+                          required 
+                          type="text" 
+                          inputMode="decimal" 
+                          placeholder="0.00" 
+                          className={`w-full px-4 py-2.5 bg-white dark:bg-slate-900 border-2 rounded-xl focus:outline-none text-[11px] text-slate-900 dark:text-white font-black transition-all ${ing.quantity <= 0 ? 'border-rose-400 animate-pulse' : 'border-slate-100 dark:border-slate-700 focus:ring-2 focus:ring-emerald-500'}`}
+                          value={ing.quantity} 
+                          onChange={(e) => updateCompleteIngredient(idx, e.target.value)} 
+                        />
                       </div>
-                      <button type="button" onClick={() => removeCompleteVariant(idx)} className="p-3 text-rose-300 hover:text-rose-500 transition-colors">
-                        <Trash2 size={16} />
-                      </button>
                     </div>
                   ))}
-                  {completeVariants.length > 0 && (
-                    <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl text-center border border-dashed dark:border-slate-700">
-                       <p className="text-[9px] font-black uppercase text-slate-500">
-                         Total Varian: <span className={completeVariants.reduce((s,v)=>s+v.quantity,0) === Number(actualQty) ? 'text-emerald-500' : 'text-rose-500'}>
-                           {formatQty(completeVariants.reduce((s,v)=>s+v.quantity,0))} / {formatQty(Number(actualQty))}
-                         </span>
-                       </p>
-                    </div>
+                  {completeIngredients.length === 0 && (
+                    <p className="text-[9px] font-bold text-slate-400 uppercase text-center py-4 italic">Tidak ada bahan baku yang didaftarkan di awal.</p>
                   )}
                 </div>
               </div>
 
-              <div className="pt-4 flex gap-4">
+              <div className="border-t dark:border-slate-800 pt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Kuantitas Hasil Berhasil (Aktual)</label>
+                  <input required type="text" inputMode="decimal" placeholder="0" className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900 dark:text-white font-black text-lg transition-all" value={actualQty} onChange={(e) => setActualQty(sanitizeNumeric(e.target.value))} />
+                  <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest ml-1">* Hasil barang jadi akhir.</p>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[9px] font-black text-blue-600 uppercase tracking-widest ml-1">Pecah ke Varian (Opsional)</label>
+                    <button type="button" onClick={addCompleteVariant} className="text-[8px] font-black text-blue-600 bg-blue-50 dark:bg-blue-500/10 px-3 py-1.5 rounded-lg flex items-center gap-2 hover:bg-blue-100 transition-all uppercase tracking-widest border border-blue-100">
+                      <Plus size={12} strokeWidth={3} /> Varian
+                    </button>
+                  </div>
+                  <div className="space-y-3">
+                    {completeVariants.map((v, idx) => (
+                      <div key={v.id} className="flex gap-2 items-center animate-in slide-in-from-left-2 duration-200">
+                        <div className="flex-[2]">
+                          <input required type="text" placeholder="LABEL" className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-xl text-[9px] text-slate-900 dark:text-white font-black uppercase transition-all" value={v.label} onChange={(e) => updateCompleteVariant(idx, 'label', e.target.value.toUpperCase())} />
+                        </div>
+                        <div className="flex-1">
+                          <input required type="text" inputMode="decimal" placeholder="0" className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-xl text-[9px] text-slate-900 dark:text-white font-black transition-all" value={v.quantity} onChange={(e) => updateCompleteVariant(idx, 'quantity', e.target.value)} />
+                        </div>
+                        <button type="button" onClick={() => removeCompleteVariant(idx)} className="p-2 text-rose-300 hover:text-rose-500 transition-colors">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))}
+                    {completeVariants.length > 0 && (
+                      <div className="p-2 bg-slate-50 dark:bg-slate-800/50 rounded-xl text-center border border-dashed dark:border-slate-700">
+                         <p className="text-[8px] font-black uppercase text-slate-500">
+                           Total: <span className={completeVariants.reduce((s,v)=>s+v.quantity,0) === Number(actualQty) ? 'text-emerald-500' : 'text-rose-500'}>
+                             {formatQty(completeVariants.reduce((s,v)=>s+v.quantity,0))} / {formatQty(Number(actualQty))}
+                           </span>
+                         </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-6 flex gap-4 sticky bottom-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm pb-2 border-t dark:border-slate-800">
                 <button type="button" onClick={() => setShowCompleteModal(null)} className="flex-1 py-4 text-slate-400 font-black hover:bg-slate-100 rounded-2xl transition-all uppercase text-[9px] tracking-widest">Batal</button>
-                <button type="submit" className="flex-[2] py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-2xl shadow-xl transition-all active:scale-95 uppercase text-[9px] tracking-widest">Konfirmasi Hasil & Masuk Stok</button>
+                <button 
+                  type="submit" 
+                  disabled={completeIngredients.some(i => i.quantity <= 0)}
+                  className={`flex-[2] py-4 text-white font-black rounded-2xl shadow-xl transition-all active:scale-95 uppercase text-[9px] tracking-widest ${completeIngredients.some(i => i.quantity <= 0) ? 'bg-slate-300 cursor-not-allowed opacity-50' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+                >
+                  Konfirmasi Penggunaan & Simpan Stok
+                </button>
               </div>
             </form>
           </div>
@@ -473,7 +546,7 @@ const Production: React.FC = () => {
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <label className="text-[9px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest ml-1">Komposisi Bahan Baku (FIFO)</label>
+                  <label className="text-[9px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest ml-1">Komposisi Bahan Baku (Bisa Diisi 0 Dahulu)</label>
                   <button type="button" onClick={addIngredientRow} className="text-[9px] font-black text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 px-4 py-2 rounded-xl flex items-center gap-2 transition-all uppercase tracking-widest border border-blue-100">
                     <Plus size={14} strokeWidth={3} /> Tambah Bahan
                   </button>

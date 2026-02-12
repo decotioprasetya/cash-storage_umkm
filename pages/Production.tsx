@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../store';
-import { Factory, Trash2, Plus, Info, Wallet, Calendar, Clock, CheckCircle2, Play, ChevronRight, Edit3 } from 'lucide-react';
+import { Factory, Trash2, Plus, Info, Wallet, Calendar, Clock, CheckCircle2, Play, ChevronRight, Edit3, Landmark as BankIcon } from 'lucide-react';
 import { StockType, TransactionCategory, ProductionStatus, ProductionRecord, BatchVariant } from '../types';
 
 const Production: React.FC = () => {
@@ -18,8 +18,8 @@ const Production: React.FC = () => {
   const [ingredients, setIngredients] = useState<{ productName: string, quantity: string | number }[]>([
     { productName: '', quantity: '' }
   ]);
-  const [opCosts, setOpCosts] = useState<{ amount: string | number, description: string }[]>([
-    { amount: '', description: '' }
+  const [opCosts, setOpCosts] = useState<{ amount: string | number, description: string, paymentMethod: 'CASH' | 'BANK' }[]>([
+    { amount: '', description: '', paymentMethod: 'CASH' }
   ]);
 
   // Form Complete Production
@@ -66,7 +66,7 @@ const Production: React.FC = () => {
   };
 
   const addCostRow = () => {
-    setOpCosts([...opCosts, { amount: '', description: '' }]);
+    setOpCosts([...opCosts, { amount: '', description: '', paymentMethod: 'CASH' }]);
   };
 
   const updateCost = (index: number, field: string, value: any) => {
@@ -135,7 +135,7 @@ const Production: React.FC = () => {
     setOutputQty('');
     setManualDate('');
     setIngredients([{ productName: '', quantity: '' }]);
-    setOpCosts([{ amount: '', description: '' }]);
+    setOpCosts([{ amount: '', description: '', paymentMethod: 'CASH' }]);
   };
 
   const formatIDR = (val: number) => {
@@ -271,7 +271,10 @@ const Production: React.FC = () => {
                       <div className="w-8 h-8 bg-white dark:bg-slate-800 rounded-lg flex items-center justify-center text-rose-500 dark:text-rose-400 border border-rose-100 dark:border-rose-700">
                         <Wallet size={14} />
                       </div>
-                      <p className="text-[10px] font-black text-rose-900 dark:text-rose-200 uppercase">{tx.description.split('(')[1]?.replace(')', '') || tx.description}</p>
+                      <div className="flex flex-col">
+                        <p className="text-[10px] font-black text-rose-900 dark:text-rose-200 uppercase">{tx.description.split('(')[1]?.replace(')', '') || tx.description}</p>
+                        <span className={`text-[7px] font-black px-1 rounded w-fit ${tx.paymentMethod === 'BANK' ? 'bg-blue-100 text-blue-600' : 'bg-rose-100 text-rose-600'}`}>{tx.paymentMethod || 'CASH'}</span>
+                      </div>
                     </div>
                     <p className="text-[10px] font-black text-rose-600 dark:text-rose-400 tracking-tighter">{formatIDR(tx.amount)}</p>
                   </div>
@@ -502,18 +505,24 @@ const Production: React.FC = () => {
                     <Plus size={14} strokeWidth={3} /> Tambah Biaya
                   </button>
                 </div>
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {opCosts.map((cost, idx) => (
-                    <div key={idx} className="flex gap-3 items-start animate-in slide-in-from-right-2 duration-200">
-                      <div className="flex-[2]">
-                        <input type="text" placeholder="KETERANGAN (MISAL: LISTRIK)" className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 text-[10px] text-slate-900 dark:text-white font-black uppercase transition-all" value={cost.description} onChange={(e) => updateCost(idx, 'description', e.target.value.toUpperCase())} />
+                    <div key={idx} className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 space-y-3 animate-in slide-in-from-right-2 duration-200">
+                      <div className="flex gap-3">
+                        <div className="flex-[2]">
+                          <input type="text" placeholder="KETERANGAN (MISAL: LISTRIK)" className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 text-[10px] text-slate-900 dark:text-white font-black uppercase transition-all" value={cost.description} onChange={(e) => updateCost(idx, 'description', e.target.value.toUpperCase())} />
+                        </div>
+                        <div className="flex-1">
+                          <input type="text" inputMode="decimal" placeholder="BIAYA (RP)" className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 text-[10px] text-slate-900 dark:text-white font-black transition-all" value={cost.amount} onChange={(e) => updateCost(idx, 'amount', e.target.value)} />
+                        </div>
+                        <button type="button" onClick={() => removeCostRow(idx)} className="p-2 text-slate-300 hover:text-rose-500 transition-colors">
+                          <Trash2 size={16} />
+                        </button>
                       </div>
-                      <div className="flex-1">
-                        <input type="text" inputMode="decimal" placeholder="BIAYA (RP)" className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 text-[10px] text-slate-900 dark:text-white font-black transition-all" value={cost.amount} onChange={(e) => updateCost(idx, 'amount', e.target.value)} />
+                      <div className="grid grid-cols-2 gap-2">
+                        <button type="button" onClick={() => updateCost(idx, 'paymentMethod', 'CASH')} className={`py-1.5 rounded-lg border transition-all font-black text-[8px] flex items-center justify-center gap-1.5 uppercase ${cost.paymentMethod === 'CASH' ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700' : 'border-slate-200 dark:border-slate-600 text-slate-400'}`}><Wallet size={10} /> Tunai</button>
+                        <button type="button" onClick={() => updateCost(idx, 'paymentMethod', 'BANK')} className={`py-1.5 rounded-lg border transition-all font-black text-[8px] flex items-center justify-center gap-1.5 uppercase ${cost.paymentMethod === 'BANK' ? 'border-blue-500 bg-blue-50 dark:bg-blue-500/10 text-blue-700' : 'border-slate-200 dark:border-slate-600 text-slate-400'}`}><BankIcon size={10} /> Bank</button>
                       </div>
-                      <button type="button" onClick={() => removeCostRow(idx)} className="p-3 text-slate-300 hover:text-rose-500 transition-colors">
-                        <Trash2 size={16} />
-                      </button>
                     </div>
                   ))}
                 </div>

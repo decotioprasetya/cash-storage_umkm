@@ -34,6 +34,7 @@ interface AppContextType {
   updateTransaction: (id: string, data: Partial<Transaction>) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
   addLoan: (data: Omit<Loan, 'id' | 'createdAt' | 'remainingAmount'>, customDate?: number, paymentMethod?: 'CASH' | 'BANK') => Promise<void>;
+  updateLoan: (id: string, data: Partial<Loan>, paymentMethod?: 'CASH' | 'BANK', customDate?: number) => Promise<void>;
   repayLoan: (loanId: string, principal: number, interest: number, customDate?: number, paymentMethod?: 'CASH' | 'BANK') => Promise<void>;
   deleteLoan: (id: string) => Promise<void>;
   updateSettings: (settings: Partial<AppSettings>) => void;
@@ -323,6 +324,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const prodUsages = state.productionUsages.filter(u => u.productionId === id);
     let updatedBatches = [...state.batches];
     prodUsages.forEach(usage => {
+      // Fix: usage.batchId should be used to find the corresponding batch, not the undefined name 'batch'.
       const idx = updatedBatches.findIndex(b => b.id === usage.batchId);
       if (idx !== -1) updatedBatches[idx].currentQuantity += usage.quantityUsed;
     });
@@ -723,6 +725,54 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setState(prev => ({ ...prev, loans: [...prev.loans, newLoan], transactions: [...prev.transactions, tx] }));
   };
 
+  const updateLoan = async (id: string, data: Partial<Loan>, paymentMethod?: 'CASH' | 'BANK', customDate?: number) => {
+    const oldLoan = state.loans.find(l => l.id === id);
+    if (!oldLoan) return;
+
+    const newInitial = data.initialAmount !== undefined ? data.initialAmount : oldLoan.initialAmount;
+    const diff = newInitial - oldLoan.initialAmount;
+    const newRemaining = oldLoan.remainingAmount + diff;
+    const newTimestamp = customDate || oldLoan.createdAt;
+
+    const updatedLoans = state.loans.map(l => l.id === id ? { 
+      ...l, 
+      ...data, 
+      remainingAmount: newRemaining,
+      createdAt: newTimestamp 
+    } : l);
+    
+    const updatedTransactions = state.transactions.map(t => {
+      if (t.relatedId === id && t.category === TransactionCategory.LOAN_PROCEEDS) {
+        return {
+          ...t,
+          amount: newInitial,
+          description: `PENCAIRAN PINJAMAN: ${data.source || oldLoan.source}`,
+          createdAt: newTimestamp,
+          paymentMethod: paymentMethod || t.paymentMethod
+        };
+      }
+      return t;
+    });
+
+    if (isCloudReady && state.user && state.settings.useCloud) {
+      await Promise.all([
+        supabase.from('loans').update({ 
+          ...data, 
+          remainingAmount: newRemaining,
+          createdAt: newTimestamp 
+        }).eq('id', id),
+        supabase.from('transactions').update({ 
+          amount: newInitial, 
+          description: `PENCAIRAN PINJAMAN: ${data.source || oldLoan.source}`,
+          createdAt: newTimestamp,
+          paymentMethod: paymentMethod || 'CASH'
+        }).eq('relatedId', id).eq('category', TransactionCategory.LOAN_PROCEEDS)
+      ]);
+    }
+
+    setState(prev => ({ ...prev, loans: updatedLoans, transactions: updatedTransactions }));
+  };
+
   const repayLoan = async (loanId: string, principal: number, interest: number, customDate?: number, paymentMethod: 'CASH' | 'BANK' = 'CASH') => {
     const loan = state.loans.find(l => l.id === loanId);
     if (!loan) return;
@@ -760,7 +810,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       deleteTransaction, updateSettings, syncLocalToCloud,
       signIn, signUp, logout,
       addDPOrder, updateDPOrder, completeDPOrder, cancelDPOrder, deleteDPOrder,
-      addLoan, repayLoan, deleteLoan
+      addLoan, updateLoan, repayLoan, deleteLoan
     }}>
       {children}
     </AppContext.Provider>

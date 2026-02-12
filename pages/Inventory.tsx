@@ -1,10 +1,12 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useApp } from '../store';
 import { 
   Plus, Trash2, Search, Filter, Layers, PackageCheck, 
   Boxes, Calculator, ArrowUpRight, ArrowDownLeft, History,
-  Eye, EyeOff, Calendar, Tag, CircleDollarSign, Edit3, AlertTriangle, Wallet, Landmark as BankIcon
+  Eye, EyeOff, Calendar, Tag, CircleDollarSign, Edit3, AlertTriangle, Wallet, Landmark as BankIcon,
+  ChevronRight,
+  MousePointerClick
 } from 'lucide-react';
 import { StockType, Batch, BatchVariant } from '../types';
 
@@ -15,6 +17,8 @@ const Inventory: React.FC = () => {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<'ALL' | StockType>('ALL');
   const [showEmpty, setShowEmpty] = useState(false);
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const [isOverflowing, setIsOverflowing] = useState(false);
   
   // Form State (Stok Baru)
   const [formData, setFormData] = useState({
@@ -37,6 +41,19 @@ const Inventory: React.FC = () => {
     stockType: StockType.FOR_PRODUCTION,
     manualDate: ''
   });
+
+  // Cek apakah tabel meluap untuk menampilkan hint scroll
+  useEffect(() => {
+    const checkOverflow = () => {
+      if (tableContainerRef.current) {
+        setIsOverflowing(tableContainerRef.current.scrollWidth > tableContainerRef.current.clientWidth);
+      }
+    };
+    
+    checkOverflow();
+    window.addEventListener('resize', checkOverflow);
+    return () => window.removeEventListener('resize', checkOverflow);
+  }, [state.batches, search, typeFilter]);
 
   const sanitizeNumeric = (val: string) => {
     let sanitized = val.replace(/,/g, '.').replace(/[^0-9.]/g, '');
@@ -211,6 +228,27 @@ const Inventory: React.FC = () => {
 
   return (
     <div className="space-y-6 lg:space-y-8 animate-in fade-in duration-500">
+      {/* CSS internal untuk mempercantik scrollbar */}
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          height: 6px;
+          width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
+          border-radius: 10px;
+        }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #334155;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #94a3b8;
+        }
+      `}</style>
+
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div className="space-y-1">
           <h2 className="text-xl lg:text-2xl font-black text-slate-900 dark:text-white tracking-tight uppercase">Manajemen Stok</h2>
@@ -228,7 +266,17 @@ const Inventory: React.FC = () => {
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 lg:gap-8">
         <div className="xl:col-span-2 space-y-6">
-          <div className="bg-white dark:bg-slate-900 rounded-[1.5rem] lg:rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden text-slate-900 dark:text-white">
+          <div className="bg-white dark:bg-slate-900 rounded-[1.5rem] lg:rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden text-slate-900 dark:text-white relative">
+            
+            {/* Scroll Hint */}
+            {isOverflowing && (
+              <div className="absolute top-24 right-4 z-20 pointer-events-none animate-bounce">
+                <div className="bg-blue-600 text-white text-[8px] font-black px-2 py-1 rounded-full flex items-center gap-1 shadow-lg border border-blue-400 uppercase tracking-widest">
+                  <MousePointerClick size={10} /> Geser Tabel →
+                </div>
+              </div>
+            )}
+
             <div className="p-4 lg:p-6 border-b border-slate-50 dark:border-slate-800 space-y-4">
               <div className="relative">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
@@ -282,22 +330,25 @@ const Inventory: React.FC = () => {
               </div>
             </div>
 
-            <div className="overflow-x-auto no-scrollbar">
-              <table className="w-full text-left min-w-[500px]">
+            <div 
+              ref={tableContainerRef}
+              className="overflow-x-auto custom-scrollbar"
+            >
+              <table className="w-full text-left min-w-[900px] border-separate border-spacing-0">
                 <thead>
                   <tr className="bg-slate-50/50 dark:bg-slate-800/50 text-slate-400 text-[9px] uppercase font-black tracking-widest border-b dark:border-slate-800">
-                    <th className="px-6 lg:px-8 py-4">Produk & Variasi</th>
-                    <th className="px-6 lg:px-8 py-4">Tipe</th>
-                    <th className="px-6 lg:px-8 py-4">Total Stok</th>
-                    <th className="px-6 lg:px-8 py-4">Harga Beli</th>
-                    <th className="px-6 lg:px-8 py-4">Total Nilai</th>
-                    <th className="px-6 lg:px-8 py-4 text-center">Aksi</th>
+                    <th className="px-4 lg:px-6 py-4 sticky left-0 z-10 bg-slate-50 dark:bg-slate-900 border-b dark:border-slate-800">Produk & Variasi</th>
+                    <th className="px-4 lg:px-6 py-4 w-24 border-b dark:border-slate-800">Tipe</th>
+                    <th className="px-4 lg:px-6 py-4 w-32 border-b dark:border-slate-800">Total Stok</th>
+                    <th className="px-4 lg:px-6 py-4 w-32 border-b dark:border-slate-800">Harga Beli</th>
+                    <th className="px-4 lg:px-6 py-4 w-32 border-b dark:border-slate-800">Total Nilai</th>
+                    <th className="px-4 lg:px-6 py-4 w-24 text-center sticky right-0 z-10 bg-slate-50 dark:bg-slate-900 border-b border-l dark:border-slate-800 shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.05)]">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
                   {filteredBatches.map((batch) => (
                     <tr key={batch.id} className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group ${batch.currentQuantity === 0 ? 'opacity-40 grayscale-[0.5]' : ''}`}>
-                      <td className="px-6 lg:px-8 py-4">
+                      <td className="px-4 lg:px-6 py-4 sticky left-0 z-10 bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-800 transition-colors">
                         <div className="flex flex-col gap-1">
                            <p className="font-black text-[10px] lg:text-[11px] text-slate-900 dark:text-slate-100 uppercase leading-none">
                              {batch.productName}
@@ -313,8 +364,8 @@ const Inventory: React.FC = () => {
                            )}
                         </div>
                       </td>
-                      <td className="px-6 lg:px-8 py-4">
-                        <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border ${
+                      <td className="px-4 lg:px-6 py-4">
+                        <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border whitespace-nowrap ${
                           batch.stockType === StockType.FOR_PRODUCTION 
                           ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-100 dark:border-amber-500/10' 
                           : 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-500/10'
@@ -322,8 +373,8 @@ const Inventory: React.FC = () => {
                           {batch.stockType === StockType.FOR_PRODUCTION ? 'Bahan' : 'Jadi'}
                         </span>
                       </td>
-                      <td className="px-6 lg:px-8 py-4">
-                        <div className="flex flex-col gap-1.5 min-w-[80px] lg:min-w-[100px]">
+                      <td className="px-4 lg:px-6 py-4">
+                        <div className="flex flex-col gap-1.5">
                           <div className="flex items-end justify-between leading-none">
                             <span className={`font-black text-[10px] lg:text-xs ${
                               batch.currentQuantity === 0 ? 'text-slate-400' : 
@@ -344,15 +395,15 @@ const Inventory: React.FC = () => {
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 lg:px-8 py-4">
-                        <p className="text-[10px] lg:text-[11px] font-black text-slate-900 dark:text-slate-100 tracking-tighter">{formatIDR(batch.buyPrice)}</p>
+                      <td className="px-4 lg:px-6 py-4">
+                        <p className="text-[10px] lg:text-[11px] font-black text-slate-900 dark:text-slate-100 tracking-tighter whitespace-nowrap">{formatIDR(batch.buyPrice)}</p>
                       </td>
-                      <td className="px-6 lg:px-8 py-4">
-                        <p className={`text-[10px] lg:text-[11px] font-black tracking-tighter ${batch.currentQuantity === 0 ? 'text-slate-300 dark:text-slate-600' : 'text-blue-600 dark:text-blue-400'}`}>
+                      <td className="px-4 lg:px-6 py-4">
+                        <p className={`text-[10px] lg:text-[11px] font-black tracking-tighter whitespace-nowrap ${batch.currentQuantity === 0 ? 'text-slate-300 dark:text-slate-600' : 'text-blue-600 dark:text-blue-400'}`}>
                           {formatIDR(batch.currentQuantity * batch.buyPrice)}
                         </p>
                       </td>
-                      <td className="px-6 lg:px-8 py-4 text-center">
+                      <td className="px-4 lg:px-6 py-4 text-center sticky right-0 z-10 bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-800 border-l dark:border-slate-800 shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.05)] transition-colors">
                         <div className="flex items-center justify-center gap-1">
                           <button 
                             onClick={() => {
@@ -367,13 +418,13 @@ const Inventory: React.FC = () => {
                               });
                               setShowEditModal(batch);
                             }}
-                            className="p-2 text-slate-300 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-xl transition-all"
+                            className="p-1.5 lg:p-2 text-slate-300 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-xl transition-all"
                           >
                             <Edit3 size={16} />
                           </button>
                           <button 
                             onClick={() => deleteBatch(batch.id)}
-                            className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-all"
+                            className="p-1.5 lg:p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-all"
                           >
                             <Trash2 size={16} />
                           </button>
@@ -398,7 +449,7 @@ const Inventory: React.FC = () => {
             </div>
           </div>
           
-          <div className="flex-1 overflow-y-auto p-3 lg:p-4 space-y-2 lg:space-y-3 no-scrollbar text-slate-900 dark:text-white">
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-3 lg:p-4 space-y-2 lg:space-y-3 text-slate-900 dark:text-white">
             {stockFlow.slice(0, 50).map((flow) => (
               <div key={flow.id} className="flex items-start gap-3 lg:gap-4 p-3 lg:p-4 bg-slate-50 dark:bg-slate-800 rounded-xl lg:rounded-2xl border border-slate-100 dark:border-slate-700 group hover:border-blue-200 transition-all">
                 <div className={`mt-0.5 p-1.5 lg:p-2 rounded-lg lg:rounded-xl flex-shrink-0 ${
@@ -503,7 +554,7 @@ const Inventory: React.FC = () => {
                 <Plus className="rotate-45 text-slate-400" size={18} />
               </button>
             </div>
-            <form onSubmit={handleEditSubmit} className="p-5 lg:p-6 space-y-6 overflow-y-auto max-h-[80vh] no-scrollbar text-slate-900">
+            <form onSubmit={handleEditSubmit} className="p-5 lg:p-6 space-y-6 overflow-y-auto max-h-[80vh] custom-scrollbar text-slate-900">
               <div className="space-y-4">
                 <div className="space-y-1">
                   <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest ml-1">Nama Barang Utama</label>

@@ -4,7 +4,7 @@ import { supabase, isCloudReady } from './supabase';
 import { 
   AppState, Batch, ProductionRecord, SaleRecord, Transaction, 
   StockType, TransactionType, TransactionCategory, ProductionUsage, AppSettings, ProductionStatus,
-  DPOrder, DPStatus, Loan, BatchVariant
+  DPOrder, DPStatus, Loan, BatchVariant, ProductionIngredient
 } from './types';
 
 interface AppContextType {
@@ -20,7 +20,7 @@ interface AppContextType {
     customDate?: number
   ) => Promise<void>;
   updateProduction: (id: string, data: Partial<ProductionRecord>) => Promise<void>;
-  completeProduction: (id: string, actualQuantity: number, variants?: BatchVariant[]) => Promise<void>;
+  completeProduction: (id: string, actualQuantity: number, ingredients: ProductionIngredient[], variants?: BatchVariant[]) => Promise<void>;
   deleteProduction: (id: string) => Promise<void>;
   runSale: (productName: string, quantity: number, pricePerUnit: number, customDate?: number, variantLabel?: string, paymentMethod?: 'CASH' | 'BANK') => Promise<void>;
   updateSale: (id: string, data: Partial<SaleRecord>) => Promise<void>;
@@ -205,34 +205,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const runProduction = async (productName: string, quantity: number, ingredients: { productName: string, quantity: number }[], operationalCosts: { amount: number, description: string, paymentMethod: 'CASH' | 'BANK' }[], customDate?: number) => {
     const timestamp = customDate || Date.now();
     const productionId = crypto.randomUUID();
-    let totalMaterialCost = 0;
-    const usages: ProductionUsage[] = [];
-    let updatedBatches = [...state.batches];
     
-    for (const ingredient of ingredients) {
-      let needed = ingredient.quantity;
-      const relevant = updatedBatches.filter(b => b.productName === ingredient.productName && b.stockType === StockType.FOR_PRODUCTION && b.currentQuantity > 0).sort((a, b) => a.createdAt - b.createdAt);
-      for (const batch of relevant) {
-        if (needed <= 0) break;
-        const take = Math.min(batch.currentQuantity, needed);
-        const idx = updatedBatches.findIndex(b => b.id === batch.id);
-        updatedBatches[idx].currentQuantity -= take;
-        totalMaterialCost += take * batch.buyPrice;
-        needed -= take;
-        usages.push({ id: crypto.randomUUID(), productionId, batchId: batch.id, quantityUsed: take, costPerUnit: batch.buyPrice });
-      }
-    }
-    
+    // Alur baru: Tidak memotong stok bahan baku di awal, hanya mencatat rencana (planned ingredients).
+    // Hal ini memungkinkan input 0 di awal dan pengisian riil di akhir.
     const totalOpCost = operationalCosts.reduce((sum, c) => sum + c.amount, 0);
-    const totalHPP = totalMaterialCost + totalOpCost;
     
     const production: ProductionRecord = { 
       id: productionId, 
       outputProductName: productName, 
       outputQuantity: quantity, 
-      totalHPP, 
+      totalHPP: totalOpCost, // HPP awal hanya biaya operasional
       createdAt: timestamp, 
-      status: ProductionStatus.IN_PROGRESS 
+      status: ProductionStatus.IN_PROGRESS,
+      ingredients: ingredients // Simpan rencana bahan
     };
     
     const newTx = operationalCosts.filter(c => c.amount > 0).map(c => ({
@@ -242,17 +227,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (isCloudReady && state.user && state.settings.useCloud) {
       await Promise.all([
-        supabase.from('batches').upsert(updatedBatches.map(i => ({...i, user_id: state.user.id}))),
         supabase.from('productions').insert({...production, user_id: state.user.id}),
-        supabase.from('production_usages').insert(usages.map(i => ({...i, user_id: state.user.id}))),
         supabase.from('transactions').insert(newTx.map(i => ({...i, user_id: state.user.id})))
       ]);
     }
     setState(prev => ({ 
       ...prev, 
-      batches: updatedBatches, 
       productions: [...prev.productions, production], 
-      productionUsages: [...prev.productionUsages, ...usages], 
       transactions: [...prev.transactions, ...newTx] 
     }));
   };
@@ -265,12 +246,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setState(prev => ({ ...prev, productions: updatedProductions }));
   };
 
-  const completeProduction = async (id: string, actualQuantity: number, variants?: BatchVariant[]) => {
+  const completeProduction = async (id: string, actualQuantity: number, actualIngredients: ProductionIngredient[], variants?: BatchVariant[]) => {
     const prod = state.productions.find(p => p.id === id);
     if (!prod || prod.status === ProductionStatus.COMPLETED) return;
     
     const timestamp = Date.now();
-    const unitPrice = actualQuantity > 0 ? (prod.totalHPP / actualQuantity) : 0;
+    let updatedBatches = [...state.batches];
+    let totalMaterialCost = 0;
+    const usages: ProductionUsage[] = [];
+
+    // Validasi & Potong Stok Bahan Baku Sekarang (FIFO)
+    for (const ingredient of actualIngredients) {
+      let needed = ingredient.quantity;
+      if (needed <= 0) continue;
+
+      const relevant = updatedBatches.filter(b => b.productName === ingredient.productName && b.stockType === StockType.FOR_PRODUCTION && b.currentQuantity > 0).sort((a, b) => a.createdAt - b.createdAt);
+      
+      const totalAvail = relevant.reduce((s, b) => s + b.currentQuantity, 0);
+      if (totalAvail < needed) {
+        throw new Error(`Stok ${ingredient.productName} tidak mencukupi. Tersedia: ${totalAvail}, Dibutuhkan: ${needed}`);
+      }
+
+      for (const batch of relevant) {
+        if (needed <= 0) break;
+        const take = Math.min(batch.currentQuantity, needed);
+        const idx = updatedBatches.findIndex(b => b.id === batch.id);
+        updatedBatches[idx].currentQuantity -= take;
+        totalMaterialCost += take * batch.buyPrice;
+        needed -= take;
+        usages.push({ id: crypto.randomUUID(), productionId: prod.id, batchId: batch.id, quantityUsed: take, costPerUnit: batch.buyPrice });
+      }
+    }
+
+    const finalTotalHPP = prod.totalHPP + totalMaterialCost;
+    const unitPrice = actualQuantity > 0 ? (finalTotalHPP / actualQuantity) : 0;
 
     const resultBatch: Batch = { 
       id: crypto.randomUUID(), 
@@ -289,26 +298,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         status: ProductionStatus.COMPLETED, 
         completedAt: timestamp, 
         batchIdCreated: resultBatch.id,
-        outputQuantity: actualQuantity // Update target qty ke hasil nyata
+        outputQuantity: actualQuantity,
+        totalHPP: finalTotalHPP
       } : p
     );
 
     if (isCloudReady && state.user && state.settings.useCloud) {
       await Promise.all([
+        supabase.from('batches').upsert(updatedBatches.map(i => ({...i, user_id: state.user.id}))),
         supabase.from('productions').update({ 
           status: ProductionStatus.COMPLETED, 
           completedAt: timestamp, 
           batchIdCreated: resultBatch.id,
-          output_quantity: actualQuantity
+          outputQuantity: actualQuantity,
+          totalHPP: finalTotalHPP
         }).eq('id', id),
+        supabase.from('production_usages').insert(usages.map(i => ({...i, user_id: state.user.id}))),
         supabase.from('batches').insert({ ...resultBatch, user_id: state.user.id })
       ]);
     }
 
     setState(prev => ({
       ...prev,
+      batches: [...updatedBatches, resultBatch],
       productions: updatedProductions,
-      batches: [...prev.batches, resultBatch]
+      productionUsages: [...prev.productionUsages, ...usages]
     }));
   };
 
@@ -324,7 +338,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const prodUsages = state.productionUsages.filter(u => u.productionId === id);
     let updatedBatches = [...state.batches];
     prodUsages.forEach(usage => {
-      // Fix: usage.batchId should be used to find the corresponding batch, not the undefined name 'batch'.
       const idx = updatedBatches.findIndex(b => b.id === usage.batchId);
       if (idx !== -1) updatedBatches[idx].currentQuantity += usage.quantityUsed;
     });

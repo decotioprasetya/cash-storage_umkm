@@ -195,46 +195,53 @@ const Transactions: React.FC = () => {
   return (
     <div className="space-y-4 lg:space-y-6 animate-in fade-in duration-500">
       
-      {/* Header Stat Board */}
-      <div className="bg-slate-900 text-white p-4 lg:p-6 rounded-[1.5rem] lg:rounded-[2rem] shadow-xl flex flex-col md:flex-row items-center justify-between gap-4 border border-slate-800">
-        <div className="flex flex-col md:flex-row items-center gap-4 lg:gap-8">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-500/10 rounded-2xl border border-blue-500/20 text-blue-400">
-              <Coins size={24} strokeWidth={2.5} />
+      {/* Header Stat Board - Responsive for Mobile Account Balances */}
+      <div className="bg-slate-900 text-white p-5 lg:p-8 rounded-[1.5rem] lg:rounded-[2.5rem] shadow-2xl flex flex-col gap-6 border border-slate-800">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="flex flex-col md:flex-row md:items-center gap-4 lg:gap-10">
+            <div className="flex items-center gap-4">
+              <div className="p-4 bg-blue-500/10 rounded-2xl border border-blue-500/20 text-blue-400">
+                <Coins size={28} strokeWidth={2.5} />
+              </div>
+              <div>
+                <p className="text-blue-300 text-[10px] font-black uppercase tracking-[0.2em] leading-none mb-1.5 text-blue-400/80">Saldo Kas Gabungan</p>
+                <h2 className="text-2xl lg:text-4xl font-black tracking-tighter leading-none">{formatIDR(totalCash)}</h2>
+              </div>
             </div>
-            <div>
-              <p className="text-blue-300 text-[9px] font-black uppercase tracking-[0.2em] leading-none mb-1 text-blue-400">Total Kas Gabungan</p>
-              <h2 className="text-2xl lg:text-3xl font-black tracking-tighter leading-none">{formatIDR(totalCash)}</h2>
+            
+            {/* Account Split - Always Visible Now */}
+            <div className="flex gap-4 lg:gap-8 pt-4 md:pt-0 border-t md:border-t-0 md:border-l border-slate-800 md:pl-8">
+              <div className="flex-1 lg:flex-none">
+                <p className="text-slate-500 text-[8px] lg:text-[9px] font-black uppercase tracking-widest mb-1 flex items-center gap-1">
+                  <span className="w-1 h-1 bg-emerald-500 rounded-full"></span> Tunai (Cash)
+                </p>
+                <p className="text-sm lg:text-base font-black text-emerald-400 tracking-tight">{formatIDR(cashOnly)}</p>
+              </div>
+              <div className="flex-1 lg:flex-none">
+                <p className="text-slate-500 text-[8px] lg:text-[9px] font-black uppercase tracking-widest mb-1 flex items-center gap-1">
+                  <span className="w-1 h-1 bg-blue-500 rounded-full"></span> Bank (Transfer)
+                </p>
+                <p className="text-sm lg:text-base font-black text-blue-400 tracking-tight">{formatIDR(bankOnly)}</p>
+              </div>
             </div>
           </div>
           
-          <div className="hidden md:flex gap-6 border-l border-slate-700 pl-8">
-            <div>
-              <p className="text-slate-500 text-[8px] font-black uppercase tracking-widest mb-1">Akun Cash</p>
-              <p className="text-sm font-black text-emerald-400 tracking-tight">{formatIDR(cashOnly)}</p>
-            </div>
-            <div>
-              <p className="text-slate-500 text-[8px] font-black uppercase tracking-widest mb-1">Akun Bank</p>
-              <p className="text-sm font-black text-blue-400 tracking-tight">{formatIDR(bankOnly)}</p>
-            </div>
+          <div className="flex gap-2.5 w-full lg:w-auto">
+            <button 
+              onClick={() => setShowManualModal(true)}
+              className="flex-1 lg:flex-none bg-slate-800 hover:bg-slate-700 text-white px-6 py-3.5 rounded-xl lg:rounded-2xl font-black flex items-center justify-center gap-2 transition-all active:scale-95 text-[10px] uppercase tracking-widest border border-slate-700"
+            >
+              <Plus size={16} strokeWidth={3} />
+              <span>Kas Manual</span>
+            </button>
+            <button 
+              onClick={() => setShowLoanModal(true)}
+              className="flex-1 lg:flex-none bg-blue-600 hover:bg-blue-700 text-white px-6 py-3.5 rounded-xl lg:rounded-2xl font-black flex items-center justify-center gap-2 shadow-xl shadow-blue-500/20 transition-all active:scale-95 text-[10px] uppercase tracking-widest"
+            >
+              <HandCoins size={16} strokeWidth={3} />
+              <span>Pinjaman</span>
+            </button>
           </div>
-        </div>
-        
-        <div className="flex gap-2 w-full md:w-auto">
-          <button 
-            onClick={() => setShowManualModal(true)}
-            className="flex-1 md:flex-none bg-slate-800 hover:bg-slate-700 text-white px-5 py-3 rounded-xl font-black flex items-center justify-center gap-2 transition-all active:scale-95 text-[9px] uppercase tracking-widest"
-          >
-            <Plus size={16} strokeWidth={3} />
-            <span>Kas Manual</span>
-          </button>
-          <button 
-            onClick={() => setShowLoanModal(true)}
-            className="flex-1 md:flex-none bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl font-black flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 transition-all active:scale-95 text-[9px] uppercase tracking-widest"
-          >
-            <HandCoins size={16} strokeWidth={3} />
-            <span>Pinjaman</span>
-          </button>
         </div>
       </div>
 

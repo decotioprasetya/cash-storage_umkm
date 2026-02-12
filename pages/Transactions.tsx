@@ -1,13 +1,14 @@
 
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../store';
-import { Wallet, Search, ArrowUpCircle, ArrowDownCircle, Plus, Filter, Trash2, Coins, Package, XCircle, ChevronRight, Edit3, Calendar, HandCoins, Landmark, AlertCircle, Info, History, TrendingUp, Scale, Lock } from 'lucide-react';
+import { Wallet, Search, ArrowUpCircle, ArrowDownCircle, Plus, Filter, Trash2, Coins, Package, XCircle, ChevronRight, Edit3, Calendar, HandCoins, Landmark, AlertCircle, Info, History, TrendingUp, Scale, Lock, Landmark as BankIcon } from 'lucide-react';
 import { TransactionType, TransactionCategory, Transaction } from '../types';
 
 const Transactions: React.FC = () => {
   const { state, addManualTransaction, updateTransaction, deleteTransaction, addLoan, repayLoan, deleteLoan } = useApp();
   const [activeTab, setActiveTab] = useState<'HISTORY' | 'LOANS'>('HISTORY');
   const [filter, setFilter] = useState<TransactionType | 'ALL'>('ALL');
+  const [accountFilter, setAccountFilter] = useState<'ALL' | 'CASH' | 'BANK'>('ALL');
   const [search, setSearch] = useState('');
   const [startDateStr, setStartDateStr] = useState('');
   const [endDateStr, setEndDateStr] = useState('');
@@ -23,6 +24,7 @@ const Transactions: React.FC = () => {
     category: '',
     amount: '' as string | number,
     description: '',
+    paymentMethod: 'CASH' as 'CASH' | 'BANK',
     manualDate: ''
   });
 
@@ -31,6 +33,7 @@ const Transactions: React.FC = () => {
     category: '',
     description: '',
     amount: '' as string | number,
+    paymentMethod: 'CASH' as 'CASH' | 'BANK',
     manualDate: ''
   });
 
@@ -39,6 +42,7 @@ const Transactions: React.FC = () => {
     source: '',
     initialAmount: '' as string | number,
     note: '',
+    paymentMethod: 'CASH' as 'CASH' | 'BANK',
     manualDate: ''
   });
 
@@ -46,6 +50,7 @@ const Transactions: React.FC = () => {
   const [repayForm, setRepayForm] = useState({
     principal: '' as string | number,
     interest: '' as string | number,
+    paymentMethod: 'CASH' as 'CASH' | 'BANK',
     manualDate: ''
   });
 
@@ -99,6 +104,13 @@ const Transactions: React.FC = () => {
     .reduce((sum, t) => sum + t.amount, 0);
 
   const totalCash = totalIncome - totalExpense;
+  const cashOnly = state.transactions
+    .filter(t => t.paymentMethod === 'CASH' || !t.paymentMethod) // legacy support
+    .reduce((sum, t) => t.type === TransactionType.CASH_IN ? sum + t.amount : sum - t.amount, 0);
+  const bankOnly = state.transactions
+    .filter(t => t.paymentMethod === 'BANK')
+    .reduce((sum, t) => t.type === TransactionType.CASH_IN ? sum + t.amount : sum - t.amount, 0);
+
   const totalDebt = state.loans.reduce((sum, l) => sum + l.remainingAmount, 0);
   const totalInventoryValue = state.batches.reduce((sum, b) => sum + (b.currentQuantity * b.buyPrice), 0);
   const netWealth = (totalCash + totalInventoryValue) - totalDebt;
@@ -110,14 +122,15 @@ const Transactions: React.FC = () => {
 
     return state.transactions.filter(t => {
       if (filter !== 'ALL' && t.type !== filter) return false;
+      if (accountFilter !== 'ALL' && (t.paymentMethod || 'CASH') !== accountFilter) return false;
       if (search && !t.description.toLowerCase().includes(search.toLowerCase())) return false;
       const txDate = new Date(t.createdAt);
       const txMid = new Date(txDate.getFullYear(), txDate.getMonth(), txDate.getDate()).getTime();
       if (startTs && txMid < startTs) return false;
       if (endTs && txMid > endTs) return false;
       return true;
-    }).sort((a, b) => b.createdAt - a.createdAt); // PENTING: Urutan terbaru berdasarkan waktu masuk
-  }, [state.transactions, filter, search, startDateStr, endDateStr]);
+    }).sort((a, b) => b.createdAt - a.createdAt);
+  }, [state.transactions, filter, accountFilter, search, startDateStr, endDateStr]);
 
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,10 +141,11 @@ const Transactions: React.FC = () => {
         type: manualForm.type,
         category: manualForm.category as TransactionCategory,
         amount,
-        description: manualForm.description
+        description: manualForm.description,
+        paymentMethod: manualForm.paymentMethod
       }, customTimestamp);
       setShowManualModal(false);
-      setManualForm({ type: TransactionType.CASH_OUT, category: '', amount: '', description: '', manualDate: '' });
+      setManualForm({ type: TransactionType.CASH_OUT, category: '', amount: '', description: '', paymentMethod: 'CASH', manualDate: '' });
     }
   };
 
@@ -144,6 +158,7 @@ const Transactions: React.FC = () => {
         category: editForm.category as TransactionCategory,
         description: editForm.description,
         amount,
+        paymentMethod: editForm.paymentMethod,
         createdAt: customTimestamp
       });
       setShowEditModal(null);
@@ -155,9 +170,9 @@ const Transactions: React.FC = () => {
     const amount = Number(loanForm.initialAmount);
     if (amount > 0 && loanForm.source) {
       const customTimestamp = loanForm.manualDate ? new Date(loanForm.manualDate).getTime() : undefined;
-      addLoan({ source: loanForm.source, initialAmount: amount, note: loanForm.note }, customTimestamp);
+      addLoan({ source: loanForm.source, initialAmount: amount, note: loanForm.note }, customTimestamp, loanForm.paymentMethod);
       setShowLoanModal(false);
-      setLoanForm({ source: '', initialAmount: '', note: '', manualDate: '' });
+      setLoanForm({ source: '', initialAmount: '', note: '', paymentMethod: 'CASH', manualDate: '' });
     }
   };
 
@@ -171,9 +186,9 @@ const Transactions: React.FC = () => {
         return;
       }
       const customTimestamp = repayForm.manualDate ? new Date(repayForm.manualDate).getTime() : undefined;
-      repayLoan(showRepayModal, principal, interest, customTimestamp);
+      repayLoan(showRepayModal, principal, interest, customTimestamp, repayForm.paymentMethod);
       setShowRepayModal(null);
-      setRepayForm({ principal: '', interest: '', manualDate: '' });
+      setRepayForm({ principal: '', interest: '', paymentMethod: 'CASH', manualDate: '' });
     }
   };
 
@@ -182,13 +197,26 @@ const Transactions: React.FC = () => {
       
       {/* Header Stat Board */}
       <div className="bg-slate-900 text-white p-4 lg:p-6 rounded-[1.5rem] lg:rounded-[2rem] shadow-xl flex flex-col md:flex-row items-center justify-between gap-4 border border-slate-800">
-        <div className="flex items-center gap-4">
-          <div className="p-3 bg-blue-500/10 rounded-2xl border border-blue-500/20 text-blue-400">
-            <Coins size={24} strokeWidth={2.5} />
+        <div className="flex flex-col md:flex-row items-center gap-4 lg:gap-8">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-blue-500/10 rounded-2xl border border-blue-500/20 text-blue-400">
+              <Coins size={24} strokeWidth={2.5} />
+            </div>
+            <div>
+              <p className="text-blue-300 text-[9px] font-black uppercase tracking-[0.2em] leading-none mb-1 text-blue-400">Total Kas Gabungan</p>
+              <h2 className="text-2xl lg:text-3xl font-black tracking-tighter leading-none">{formatIDR(totalCash)}</h2>
+            </div>
           </div>
-          <div>
-            <p className="text-blue-300 text-[9px] font-black uppercase tracking-[0.2em] leading-none mb-1 text-blue-400">Total Aset Bisnis</p>
-            <h2 className="text-2xl lg:text-3xl font-black tracking-tighter leading-none">{formatIDR(totalAsset)}</h2>
+          
+          <div className="hidden md:flex gap-6 border-l border-slate-700 pl-8">
+            <div>
+              <p className="text-slate-500 text-[8px] font-black uppercase tracking-widest mb-1">Akun Cash</p>
+              <p className="text-sm font-black text-emerald-400 tracking-tight">{formatIDR(cashOnly)}</p>
+            </div>
+            <div>
+              <p className="text-slate-500 text-[8px] font-black uppercase tracking-widest mb-1">Akun Bank</p>
+              <p className="text-sm font-black text-blue-400 tracking-tight">{formatIDR(bankOnly)}</p>
+            </div>
           </div>
         </div>
         
@@ -327,6 +355,24 @@ const Transactions: React.FC = () => {
                  </div>
 
                  <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-3 xl:pt-0">
+                    <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+                      {[
+                        { id: 'ALL', label: 'SEMUA' },
+                        { id: 'CASH', label: 'CASH' },
+                        { id: 'BANK', label: 'BANK' }
+                      ].map(btn => (
+                        <button 
+                          key={btn.id}
+                          onClick={() => setAccountFilter(btn.id as any)}
+                          className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all ${accountFilter === btn.id ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-sm' : 'text-slate-400'}`}
+                        >
+                          {btn.label}
+                        </button>
+                      ))}
+                    </div>
+                    
+                    <div className="h-4 w-[1px] bg-slate-200 dark:bg-slate-700 mx-1"></div>
+
                     {[
                       { id: 'ALL', label: 'SEMUA' },
                       { id: TransactionType.CASH_IN, label: 'MASUK' },
@@ -352,7 +398,7 @@ const Transactions: React.FC = () => {
               <table className="w-full text-left min-w-[800px]">
                 <thead>
                   <tr className="bg-slate-50/50 dark:bg-slate-800/50 text-slate-400 text-[8px] uppercase font-black tracking-widest border-b dark:border-slate-800">
-                    <th className="px-6 py-4">Tipe</th>
+                    <th className="px-6 py-4">Akun</th>
                     <th className="px-6 py-4">Tanggal</th>
                     <th className="px-6 py-4">Kategori</th>
                     <th className="px-6 py-4">Deskripsi</th>
@@ -366,8 +412,13 @@ const Transactions: React.FC = () => {
                     return (
                       <tr key={t.id} className="hover:bg-slate-50/30 dark:hover:bg-slate-800/30 transition-colors group">
                         <td className="px-6 py-4">
-                          <div className={`p-1.5 w-fit rounded-lg ${t.type === TransactionType.CASH_IN ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>
-                            {t.type === TransactionType.CASH_IN ? <ArrowUpCircle size={14} /> : <ArrowDownCircle size={14} />}
+                          <div className={`flex items-center gap-2 px-2 py-1 rounded-lg w-fit ${
+                            (t.paymentMethod || 'CASH') === 'CASH' 
+                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' 
+                            : 'bg-blue-50 text-blue-600 border border-blue-100'
+                          }`}>
+                            {(t.paymentMethod || 'CASH') === 'CASH' ? <Wallet size={12} /> : <BankIcon size={12} />}
+                            <span className="text-[8px] font-black uppercase tracking-widest">{t.paymentMethod || 'CASH'}</span>
                           </div>
                         </td>
                         <td className="px-6 py-4">
@@ -398,7 +449,6 @@ const Transactions: React.FC = () => {
                                 <span className="bg-slate-900 dark:bg-slate-800 text-white dark:text-slate-300 px-2 py-1 rounded-md text-[7px] font-black uppercase tracking-widest border border-slate-700 flex items-center gap-1 shadow-sm">
                                   <Lock size={8} /> {source}
                                 </span>
-                                <span className="text-[6px] text-slate-400 font-bold uppercase tracking-tighter">Hapus di Modul</span>
                              </div>
                           ) : (
                             <div className="flex items-center justify-center gap-1">
@@ -408,6 +458,7 @@ const Transactions: React.FC = () => {
                                     category: t.category,
                                     description: t.description,
                                     amount: t.amount,
+                                    paymentMethod: t.paymentMethod || 'CASH',
                                     manualDate: new Date(t.createdAt).toISOString().split('T')[0]
                                   });
                                   setShowEditModal(t);
@@ -468,7 +519,7 @@ const Transactions: React.FC = () => {
                   <div className="flex gap-2">
                     <button 
                       onClick={() => {
-                        setRepayForm({ principal: '', interest: '', manualDate: '' });
+                        setRepayForm({ principal: '', interest: '', paymentMethod: 'CASH', manualDate: '' });
                         setShowRepayModal(loan.id);
                       }}
                       disabled={loan.remainingAmount <= 0}
@@ -505,6 +556,10 @@ const Transactions: React.FC = () => {
                 <button type="button" onClick={() => setManualForm({...manualForm, type: TransactionType.CASH_IN})} className={`py-2 rounded-xl border-2 font-black text-[9px] uppercase transition-all ${manualForm.type === TransactionType.CASH_IN ? 'bg-emerald-50 border-emerald-500 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400' : 'border-slate-100 dark:border-slate-800 text-slate-400'}`}>Masuk</button>
                 <button type="button" onClick={() => setManualForm({...manualForm, type: TransactionType.CASH_OUT})} className={`py-2 rounded-xl border-2 font-black text-[9px] uppercase transition-all ${manualForm.type === TransactionType.CASH_OUT ? 'bg-rose-50 border-rose-500 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400' : 'border-slate-100 dark:border-slate-800 text-slate-400'}`}>Keluar</button>
               </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => setManualForm({...manualForm, paymentMethod: 'CASH'})} className={`py-2 rounded-xl border-2 font-black text-[9px] uppercase transition-all flex items-center justify-center gap-2 ${manualForm.paymentMethod === 'CASH' ? 'bg-emerald-50 border-emerald-500 text-emerald-700 dark:bg-emerald-500/10' : 'border-slate-100 dark:border-slate-800 text-slate-400'}`}><Wallet size={12}/> Tunai/Cash</button>
+                <button type="button" onClick={() => setManualForm({...manualForm, paymentMethod: 'BANK'})} className={`py-2 rounded-xl border-2 font-black text-[9px] uppercase transition-all flex items-center justify-center gap-2 ${manualForm.paymentMethod === 'BANK' ? 'bg-blue-50 border-blue-500 text-blue-700 dark:bg-blue-500/10' : 'border-slate-100 dark:border-slate-800 text-slate-400'}`}><BankIcon size={12}/> Bank/Transfer</button>
+              </div>
               <div className="space-y-1">
                 <label className="text-[8px] font-black text-slate-500 uppercase">Kategori</label>
                 <input required type="text" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-xl text-[10px] font-black uppercase transition-all" value={manualForm.category} onChange={(e) => setManualForm({...manualForm, category: e.target.value.toUpperCase()})} />
@@ -539,6 +594,10 @@ const Transactions: React.FC = () => {
               <button onClick={() => setShowEditModal(null)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-all"><Plus className="rotate-45" size={20} /></button>
             </div>
             <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => setEditForm({...editForm, paymentMethod: 'CASH'})} className={`py-2 rounded-xl border-2 font-black text-[9px] uppercase transition-all flex items-center justify-center gap-2 ${editForm.paymentMethod === 'CASH' ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'border-slate-100 text-slate-400'}`}><Wallet size={12}/> Cash</button>
+                <button type="button" onClick={() => setEditForm({...editForm, paymentMethod: 'BANK'})} className={`py-2 rounded-xl border-2 font-black text-[9px] uppercase transition-all flex items-center justify-center gap-2 ${editForm.paymentMethod === 'BANK' ? 'bg-blue-50 border-blue-500 text-blue-700' : 'border-slate-100 text-slate-400'}`}><BankIcon size={12}/> Bank</button>
+              </div>
               <div className="space-y-1">
                 <label className="text-[8px] font-black text-slate-500 uppercase">Kategori</label>
                 <input required type="text" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-xl text-[10px] font-black uppercase transition-all" value={editForm.category} onChange={(e) => setEditForm({...editForm, category: e.target.value.toUpperCase()})} />
@@ -573,6 +632,10 @@ const Transactions: React.FC = () => {
               <button onClick={() => setShowLoanModal(false)} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-all text-slate-400"><Plus className="rotate-45" size={20} /></button>
             </div>
             <form onSubmit={handleLoanSubmit} className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => setLoanForm({...loanForm, paymentMethod: 'CASH'})} className={`py-2 rounded-xl border-2 font-black text-[9px] uppercase transition-all ${loanForm.paymentMethod === 'CASH' ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'border-slate-100 text-slate-400'}`}>Masuk Ke Cash</button>
+                <button type="button" onClick={() => setLoanForm({...loanForm, paymentMethod: 'BANK'})} className={`py-2 rounded-xl border-2 font-black text-[9px] uppercase transition-all ${loanForm.paymentMethod === 'BANK' ? 'bg-blue-50 border-blue-500 text-blue-700' : 'border-slate-100 text-slate-400'}`}>Masuk Ke Bank</button>
+              </div>
               <div className="space-y-1">
                 <label className="text-[8px] font-black uppercase tracking-widest ml-1">Sumber Pinjaman</label>
                 <input required type="text" placeholder="MISAL: BANK MANDIRI, KOLEGA..." className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-xl text-[10px] font-black uppercase transition-all" value={loanForm.source} onChange={(e) => setLoanForm({...loanForm, source: e.target.value.toUpperCase()})} />
@@ -584,12 +647,6 @@ const Transactions: React.FC = () => {
               <div className="space-y-1">
                 <label className="text-[8px] font-black uppercase tracking-widest ml-1">Catatan</label>
                 <input type="text" placeholder="..." className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-xl text-[10px] font-black uppercase transition-all" value={loanForm.note} onChange={(e) => setLoanForm({...loanForm, note: e.target.value.toUpperCase()})} />
-              </div>
-              <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-800 flex gap-3">
-                <Info size={14} className="text-blue-600 shrink-0 mt-0.5" />
-                <p className="text-[7px] font-bold uppercase leading-tight tracking-wider">
-                  Uang pinjaman akan menambah Kas dan Liabilitas. Transaksi ini tidak akan memengaruhi Laba Rugi usaha secara langsung (Hanya Bunga).
-                </p>
               </div>
               <div className="flex gap-2 pt-2">
                 <button type="button" onClick={() => setShowLoanModal(false)} className="flex-1 py-3 text-slate-400 font-black uppercase text-[9px]">Batal</button>
@@ -609,24 +666,17 @@ const Transactions: React.FC = () => {
               <button onClick={() => setShowRepayModal(null)} className="p-2 hover:bg-slate-200 rounded-xl transition-all text-slate-400"><Plus className="rotate-45" size={20} /></button>
             </div>
             <form onSubmit={handleRepaySubmit} className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => setRepayForm({...repayForm, paymentMethod: 'CASH'})} className={`py-2 rounded-xl border-2 font-black text-[9px] uppercase transition-all ${repayForm.paymentMethod === 'CASH' ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'border-slate-100 text-slate-400'}`}>Potong Cash</button>
+                <button type="button" onClick={() => setRepayForm({...repayForm, paymentMethod: 'BANK'})} className={`py-2 rounded-xl border-2 font-black text-[9px] uppercase transition-all ${repayForm.paymentMethod === 'BANK' ? 'bg-blue-50 border-blue-500 text-blue-700' : 'border-slate-100 text-slate-400'}`}>Potong Bank</button>
+              </div>
               <div className="space-y-1">
-                <label className="text-[8px] font-black uppercase tracking-widest ml-1">Bayar Pokok (Mengurangi Hutang)</label>
+                <label className="text-[8px] font-black uppercase tracking-widest ml-1">Bayar Pokok</label>
                 <input required type="text" inputMode="decimal" placeholder="0" className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-xl text-[10px] font-black transition-all" value={repayForm.principal} onChange={(e) => setRepayForm({...repayForm, principal: sanitizeNumeric(e.target.value)})} />
               </div>
               <div className="space-y-1">
-                <label className="text-[8px] font-black text-rose-600 uppercase tracking-widest ml-1">Bunga (Beban Operasional)</label>
+                <label className="text-[8px] font-black text-rose-600 uppercase tracking-widest ml-1">Bunga</label>
                 <input required type="text" inputMode="decimal" placeholder="0" className="w-full px-4 py-2.5 bg-rose-50/50 dark:bg-rose-500/10 border-2 border-rose-100 dark:border-rose-500/20 rounded-xl text-[10px] font-black transition-all" value={repayForm.interest} onChange={(e) => setRepayForm({...repayForm, interest: sanitizeNumeric(e.target.value)})} />
-              </div>
-              <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-xl border border-orange-100 dark:border-orange-800 space-y-2">
-                 <div className="flex gap-3">
-                  <AlertCircle size={14} className="text-orange-600 shrink-0 mt-0.5" />
-                  <p className="text-[7px] font-bold uppercase leading-tight tracking-wider">
-                    Pokok tidak mengurangi laba. Hanya bunga yang dicatat sebagai beban operasional di laporan laba rugi.
-                  </p>
-                 </div>
-                 <div className="pt-2 border-t border-orange-200 dark:border-orange-800 text-center">
-                   <p className="text-[8px] font-black uppercase tracking-widest">Total Kas Keluar: <span className="text-rose-600">{formatIDR(Number(repayForm.principal) + Number(repayForm.interest))}</span></p>
-                 </div>
               </div>
               <div className="flex gap-2 pt-2">
                 <button type="button" onClick={() => setShowRepayModal(null)} className="flex-1 py-3 text-slate-400 font-black uppercase text-[9px]">Batal</button>

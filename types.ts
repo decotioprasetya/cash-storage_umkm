@@ -57,6 +57,11 @@ export interface ProductionUsage {
   costPerUnit: number;
 }
 
+export interface ProductionIngredient {
+  productName: string;
+  quantity: number;
+}
+
 export interface ProductionRecord {
   id: string;
   outputProductName: string;
@@ -66,6 +71,7 @@ export interface ProductionRecord {
   completedAt?: number;
   status: ProductionStatus;
   batchIdCreated?: string;
+  ingredients?: ProductionIngredient[]; // Bahan yang direncanakan/diinput di awal
 }
 
 export interface SaleRecord {

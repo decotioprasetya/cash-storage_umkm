@@ -107,6 +107,7 @@ const Reports: React.FC = () => {
     const txData = filteredData.transactions.map(t => ({
       'Tanggal': formatDateLabel(t.createdAt),
       'Waktu': formatFullTime(t.createdAt),
+      'Akun': t.paymentMethod || 'CASH',
       'Tipe': t.type,
       'Kategori': t.category,
       'Deskripsi': t.description,
@@ -188,11 +189,11 @@ const Reports: React.FC = () => {
     
     autoTable(doc, {
       startY: (doc as any).lastAutoTable.finalY + 18,
-      head: [['Tgl', 'Kategori', 'Keterangan', 'Nominal']],
+      head: [['Tgl', 'Akun', 'Kategori', 'Nominal']],
       body: filteredData.transactions.slice(0, 30).map(t => [
         formatDateLabel(t.createdAt),
+        t.paymentMethod || 'CASH',
         t.category,
-        t.description,
         formatIDR(t.amount)
       ]),
       styles: { fontSize: 8 }
@@ -309,7 +310,10 @@ const Reports: React.FC = () => {
                   <tr key={t.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-all">
                     <td className="px-6 py-4">
                       <div className="flex flex-col">
-                        <span className="text-[10px] font-black text-slate-900 dark:text-white leading-tight uppercase">{t.description}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-black text-slate-900 dark:text-white leading-tight uppercase">{t.description}</span>
+                          <span className={`text-[7px] font-black px-1 rounded ${t.paymentMethod === 'BANK' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'}`}>{t.paymentMethod || 'CASH'}</span>
+                        </div>
                         <span className="text-[7px] font-black text-slate-400 uppercase mt-1 tracking-widest">{formatDateLabel(t.createdAt)} • {t.category}</span>
                       </div>
                     </td>
@@ -318,9 +322,6 @@ const Reports: React.FC = () => {
                     </td>
                   </tr>
                 ))}
-                {filteredData.transactions.length === 0 && (
-                   <tr><td colSpan={2} className="py-12 text-center text-slate-400 text-[10px] font-black uppercase tracking-widest opacity-30">Belum ada data</td></tr>
-                )}
               </tbody>
             </table>
           </div>
@@ -350,9 +351,6 @@ const Reports: React.FC = () => {
                     </td>
                   </tr>
                 ))}
-                {filteredData.sales.length === 0 && (
-                   <tr><td colSpan={2} className="py-12 text-center text-slate-400 text-[10px] font-black uppercase tracking-widest opacity-30">Belum ada data</td></tr>
-                )}
               </tbody>
             </table>
           </div>

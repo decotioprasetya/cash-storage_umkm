@@ -17,7 +17,8 @@ export enum TransactionCategory {
   DEPOSIT = 'DEPOSIT',
   FORFEITED_DP = 'DP HANGUS',
   LOAN_PROCEEDS = 'PINJAMAN', // Pencairan Pinjaman (Hanya Kas & Hutang)
-  LOAN_REPAYMENT = 'PAMBAYARAN PINJAMAN' // Pelunasan Pokok (Hanya Kas & Hutang)
+  LOAN_REPAYMENT = 'PAMBAYARAN PINJAMAN', // Pelunasan Pokok (Hanya Kas & Hutang)
+  TRANSFER = 'PINDAH DANA' // Fitur Baru: Transfer antar Bank/Tunai
 }
 
 export enum ProductionStatus {

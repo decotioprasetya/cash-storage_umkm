@@ -33,6 +33,7 @@ interface AppContextType {
   addManualTransaction: (data: Omit<Transaction, 'id' | 'createdAt'>, customDate?: number) => Promise<void>;
   updateTransaction: (id: string, data: Partial<Transaction>) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
+  transferFunds: (amount: number, from: 'CASH' | 'BANK', to: 'CASH' | 'BANK', note: string, customDate?: number) => Promise<void>;
   addLoan: (data: Omit<Loan, 'id' | 'createdAt' | 'remainingAmount'>, customDate?: number, paymentMethod?: 'CASH' | 'BANK') => Promise<void>;
   updateLoan: (id: string, data: Partial<Loan>, paymentMethod?: 'CASH' | 'BANK', customDate?: number) => Promise<void>;
   repayLoan: (loanId: string, principal: number, interest: number, customDate?: number, paymentMethod?: 'CASH' | 'BANK') => Promise<void>;
@@ -488,7 +489,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const bIdx = updatedBatches.findIndex(b => b.id === batch.id);
       updatedBatches[bIdx].currentQuantity -= take;
       if (newVariant && updatedBatches[bIdx].variants) {
-        const vIdx = updatedBatches[bIdx].variants!.findIndex(v => v.label === newVariant);
+        const vIdx = updatedBatches[bIdx].variants!.findIndex(v => v.label === variantLabel);
         if (vIdx !== -1) updatedBatches[bIdx].variants![vIdx].quantity -= take;
       }
       needed -= take;
@@ -725,6 +726,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setState(prev => ({ ...prev, transactions: prev.transactions.filter(t => t.id !== id) }));
   };
 
+  const transferFunds = async (amount: number, from: 'CASH' | 'BANK', to: 'CASH' | 'BANK', note: string, customDate?: number) => {
+    const timestamp = customDate || Date.now();
+    const transferGroupId = crypto.randomUUID();
+
+    const outTx: Transaction = {
+      id: crypto.randomUUID(),
+      type: TransactionType.CASH_OUT,
+      category: TransactionCategory.TRANSFER,
+      amount,
+      description: `TRANSFER: ${from} -> ${to}${note ? ` (${note})` : ''}`,
+      createdAt: timestamp,
+      paymentMethod: from,
+      relatedId: transferGroupId
+    };
+
+    const inTx: Transaction = {
+      id: crypto.randomUUID(),
+      type: TransactionType.CASH_IN,
+      category: TransactionCategory.TRANSFER,
+      amount,
+      description: `TERIMA TRANSFER DARI ${from}${note ? ` (${note})` : ''}`,
+      createdAt: timestamp,
+      paymentMethod: to,
+      relatedId: transferGroupId
+    };
+
+    if (isCloudReady && state.user && state.settings.useCloud) {
+      await Promise.all([
+        supabase.from('transactions').insert({...outTx, user_id: state.user.id}),
+        supabase.from('transactions').insert({...inTx, user_id: state.user.id})
+      ]);
+    }
+    setState(prev => ({ ...prev, transactions: [...prev.transactions, outTx, inTx] }));
+  };
+
   const addLoan = async (data: Omit<Loan, 'id' | 'createdAt' | 'remainingAmount'>, customDate?: number, paymentMethod: 'CASH' | 'BANK' = 'CASH') => {
     const timestamp = customDate || Date.now();
     const newLoan: Loan = { ...data, id: crypto.randomUUID(), remainingAmount: data.initialAmount, createdAt: timestamp };
@@ -820,7 +856,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     <AppContext.Provider value={{ 
       state, addBatch, updateBatch, deleteBatch, runProduction, updateProduction, completeProduction,
       deleteProduction, runSale, updateSale, deleteSale, addManualTransaction, updateTransaction, 
-      deleteTransaction, updateSettings, syncLocalToCloud,
+      deleteTransaction, transferFunds, updateSettings, syncLocalToCloud,
       signIn, signUp, logout,
       addDPOrder, updateDPOrder, completeDPOrder, cancelDPOrder, deleteDPOrder,
       addLoan, updateLoan, repayLoan, deleteLoan
